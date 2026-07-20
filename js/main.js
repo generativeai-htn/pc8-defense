@@ -220,6 +220,7 @@ function showQuestAssistant({ title, message, actionLabel, onContinue, autoDelay
 
 function renderPractice() {
   const mission = game.currentMission;
+  $("scr-game").classList.remove("battle-mode");
   game.practiceSim?.destroy();
   game.practiceSim = new WindowsPracticeSimulator({
     mount: $("missionMount"),
@@ -333,6 +334,7 @@ function finishPractice() {
 
 async function renderBattle(finalMode) {
   const mission = game.currentMission;
+  $("scr-game").classList.add("battle-mode");
   sound.playMusic(finalMode ? "boss" : "battle");
   const utilityButtons = finalMode
     ? Object.entries(UTILITIES).map(([id,utility])=>`<button class="ability-btn" data-tool="${id}" style="--ability:${utility.color}" type="button"><b>${utility.icon} ${utility.name}</b><small>${utility.symptom}</small><i></i></button>`).join("") + `<button class="ability-btn special-ability" data-special="guardian" style="--ability:#53d6a5" type="button"><img src="${PACK}/Cat Guardian/Idle/Enemy-Idle_00.png" alt=""><b>Cat Guardian</b><small>ฟื้นฟูฐาน</small><i></i></button><button class="ability-btn special-ability" data-special="boxing" style="--ability:#ffbd4a" type="button"><img src="${PACK}/CatBoxing/Idle/CatBoxing-Idle_00.png" alt=""><b>Cat Boxing</b><small>หมัดทำลายเกราะ</small><i></i></button>`
@@ -485,6 +487,7 @@ function closeResult(){$("resultOverlay").classList.remove("open");$("resultOver
 
 function renderDebrief(result) {
   if(game.battle){game.battle.stop();game.battle=null;}
+  $("scr-game").classList.remove("battle-mode");
   const mission=game.currentMission;setPhase(2);game.completed.add(mission.id);saveProgress();sound.playMusic("hub");
   const facts=mission.facts || FINAL_MISSION.facts;
   $("missionMount").innerHTML=`<div class="debrief"><img class="badge-art" src="${PACK}/Ui/WinBonus.png" alt=""><p class="eyebrow">SYSTEM STABILIZED · INTEGRITY ${result.integrity}%</p><h3>${mission.id==="final"?"ปกป้อง PC-8 Core สำเร็จ":escapeHTML(mission.reward)}</h3><p>ความรู้ที่นำไปใช้ในภารกิจนี้</p><div class="takeaways">${facts.map((fact,index)=>`<div class="takeaway"><b>${index+1}</b> ${escapeHTML(fact)}</div>`).join("")}</div><button id="debriefNext" class="game-btn primary xl" type="button">${mission.id==="final"?"รับประกาศนียบัตร":"กลับแผนที่ภารกิจ"}</button></div>`;

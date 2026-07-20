@@ -98,6 +98,27 @@ class DefenseBattle {
     this.canvas.addEventListener("pointerleave", this.boundLeave);
     window.addEventListener("keydown", this.boundKey);
     window.addEventListener("keyup", this.boundKeyUp);
+    this.boundFitCanvas = () => this.fitCanvas();
+    window.addEventListener("resize", this.boundFitCanvas);
+    this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(this.boundFitCanvas) : null;
+    this.resizeObserver?.observe(this.canvas.parentElement);
+    requestAnimationFrame(this.boundFitCanvas);
+  }
+
+  fitCanvas() {
+    const wrap = this.canvas.parentElement;
+    if (!wrap) return;
+    const availableWidth = wrap.clientWidth;
+    const availableHeight = wrap.clientHeight;
+    if (!availableWidth || !availableHeight) return;
+    let width = availableWidth;
+    let height = width * 9 / 16;
+    if (height > availableHeight) {
+      height = availableHeight;
+      width = height * 16 / 9;
+    }
+    this.canvas.style.width = `${Math.floor(width)}px`;
+    this.canvas.style.height = `${Math.floor(height)}px`;
   }
 
   async load() {
@@ -164,6 +185,8 @@ class DefenseBattle {
 
   stop() {
     this.running = false;
+    this.resizeObserver?.disconnect();
+    window.removeEventListener("resize", this.boundFitCanvas);
     this.canvas.removeEventListener("pointermove", this.boundMove);
     this.canvas.removeEventListener("pointerdown", this.boundDown);
     window.removeEventListener("pointerup", this.boundUp);
