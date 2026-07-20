@@ -261,7 +261,7 @@ function practiceDamage(amount) {
 function renderSectorScan() {
   const corrupt = new Set([2, 7, 13, 18]);
   let fixed = 0;
-  $("missionMount").querySelector(".sim-console").innerHTML = `<p class="eyebrow">CHECK DISK SCANNER</p><h3>ระบุเซกเตอร์ที่มี File System Error</h3><p class="sim-instruction">จุดสีแดงคือโครงสร้างไฟล์เสียหาย คลิกให้ครบเพื่อสั่งซ่อม</p><div id="sectorGrid" class="sector-grid">${Array.from({length:20},(_,index)=>`<button class="sector ${corrupt.has(index) ? "corrupt" : ""}" data-sector="${index}" type="button"></button>`).join("")}</div><p id="sectorFeedback" class="feedback-line">ตรวจพบสัญญาณผิดปกติ 4 จุด</p><div id="practiceActions" class="sim-actions"></div>`;
+  $("missionMount").innerHTML = `<div class="sim-layout"><section class="sim-console"><p class="eyebrow">CHECK DISK SCANNER</p><h3>ระบุเซกเตอร์ที่มี File System Error</h3><p class="sim-instruction">จุดสีแดงคือโครงสร้างไฟล์เสียหาย คลิกให้ครบเพื่อสั่งซ่อม</p><div id="sectorGrid" class="sector-grid">${Array.from({length:20},(_,index)=>`<button class="sector ${corrupt.has(index) ? "corrupt" : ""}" data-sector="${index}" type="button" aria-label="เซกเตอร์ ${index + 1}"></button>`).join("")}</div><p id="sectorFeedback" class="feedback-line">ตรวจพบสัญญาณผิดปกติ 4 จุด</p><div id="practiceActions" class="sim-actions"></div></section>${teamCoach(game.currentMission)}</div>`;
   $("sectorGrid").querySelectorAll("button").forEach(button => button.addEventListener("click", () => {
     const index = Number(button.dataset.sector);
     if (!corrupt.has(index)) { button.classList.add("wrong"); $("sectorFeedback").textContent="จุดนี้ปกติ — มองหาเซกเตอร์สีแดง"; practiceDamage(3); return; }
