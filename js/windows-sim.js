@@ -148,7 +148,15 @@ class WindowsPracticeSimulator {
   npcDialogHTML() {
     const cat = CAT_TEAM[this.mission.team[0] - 1];
     if (!this.npcOpen) return `<button class="npc-guide-chip" data-win-action="toggle-npc" type="button"><img src="${catIdlePath(cat.id)}" alt=""><span>เรียก ${this.esc(cat.name)}</span></button>`;
-    return `<section class="npc-dialog" aria-live="polite"><img src="${catIdlePath(cat.id)}" alt="${this.esc(cat.name)}"><div><header><b>${this.esc(cat.name)}</b><span>NPC SYSTEM GUIDE · STEP ${Math.min(this.step + 1, this.steps.length)}/${this.steps.length}</span><button data-win-action="toggle-npc" type="button" aria-label="ย่อคำแนะนำ">—</button></header><p>${this.esc(this.guideMessage())}</p></div></section>`;
+    let syncShortcut = "";
+    if (this.mission.id === "onedrive" && this.step === 9) {
+      syncShortcut = `<button class="npc-action-button pulse-target" data-win-action="open-sync-folder" type="button">📁 เปิดโฟลเดอร์ OneDrive ที่ Sync</button>`;
+    } else if (this.mission.id === "onedrive" && this.step === 10) {
+      syncShortcut = this.contextOpen
+        ? `<button class="npc-action-button pulse-target" data-win-action="free-up-space" type="button">☁ เลือก Free up space</button>`
+        : `<button class="npc-action-button pulse-target" data-win-action="sync-file-menu" type="button">📄 เปิดเมนูไฟล์ Unit8_Report.docx</button>`;
+    }
+    return `<section class="npc-dialog" aria-live="polite"><img src="${catIdlePath(cat.id)}" alt="${this.esc(cat.name)}"><div><header><b>${this.esc(cat.name)}</b><span>NPC SYSTEM GUIDE · STEP ${Math.min(this.step + 1, this.steps.length)}/${this.steps.length}</span><button data-win-action="toggle-npc" type="button" aria-label="ย่อคำแนะนำ">—</button></header><p>${this.esc(this.guideMessage())}</p>${syncShortcut}</div></section>`;
   }
 
   render() {
@@ -212,10 +220,11 @@ class WindowsPracticeSimulator {
   }
 
   taskbarHTML() {
+    const syncTarget = this.mission.id === "onedrive" && this.step === 9 ? "pulse-target" : "";
     return `<div class="win-taskbar">
       <button class="win-start" type="button" aria-label="Start">${this.icon("windows")}</button>
       <button class="win-search" data-win-action="open-search" type="button">⌕ <span>Search</span></button>
-      <button class="win-task-icon" data-win-action="open-explorer" type="button" title="File Explorer">${this.icon("folder")}</button>
+      <button class="win-task-icon ${syncTarget}" data-win-action="open-explorer" type="button" title="เปิดโฟลเดอร์ OneDrive ที่ Sync">${this.icon("folder")}</button>
       <button class="win-task-icon" data-win-action="open-edge" type="button" title="Microsoft Edge">${this.icon("edge")}</button>
       <span class="win-clock">ENG<br>${new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
     </div>`;
@@ -332,12 +341,13 @@ class WindowsPracticeSimulator {
 
   oneDriveFilesHTML() {
     const menu = this.contextOpen ? `<div class="onedrive-share-dialog"><h3>Share “Unit8_Report.docx”</h3><p>Anyone with the link can view</p><input value="https://1drv.ms/u/s!training-unit8" readonly><button data-win-action="copy-link" class="win-primary pulse-target">Copy link</button></div>` : "";
-    return `<div class="onedrive-app"><header><b>${this.icon("cloud")} OneDrive</b><span>Training account</span></header><nav><button>My files</button><button>Recent</button><button>Shared</button><button>Recycle bin</button></nav><main><div class="onedrive-command"><button data-win-action="upload-menu" class="${this.step === 4 ? "pulse-target" : ""}">⬆ Upload</button><button>＋ New</button><button data-win-action="open-sync-folder" class="${this.step === 9 ? "pulse-target" : ""}">↻ Sync</button></div>${this.screen === "onedrive-files" && this.status === "picker" ? `<div class="file-picker"><h3>Open</h3><nav>Quick access · Documents</nav><button data-win-action="choose-upload-file" class="pulse-target">${this.icon("document")}<b>Unit8_Report.docx</b><small>Microsoft Word Document · 840 KB</small></button><footer><button data-win-action="choose-upload-file" class="win-primary">Open</button><button>Cancel</button></footer></div>` : `<div class="onedrive-list"><div><input type="checkbox" disabled><b>Name</b><span>Modified</span><span>File size</span></div>${this.status === "uploaded" || this.fileSelected || this.step >= 6 ? `<button data-win-action="select-uploaded-file" class="${this.fileSelected ? "selected" : "pulse-target"}"><input type="checkbox" ${this.fileSelected ? "checked" : ""}><b>${this.icon("document")} Unit8_Report.docx</b><span>Just now</span><span>840 KB</span></button>${this.fileSelected ? `<div class="file-actions"><button data-win-action="share-file" class="pulse-target">↗ Share</button><button>Download</button><button>Delete</button></div>` : ""}` : `<div class="onedrive-empty">${this.icon("cloud")}<b>Files you upload will appear here</b></div>`}</div>`}</main>${menu}</div>`;
+    const syncStep = this.step === 9;
+    return `<div class="onedrive-app"><header><b>${this.icon("cloud")} OneDrive</b><span>Training account</span></header><nav><button>My files</button><button>Recent</button><button>Shared</button><button>Recycle bin</button></nav><main><div class="onedrive-command"><button data-win-action="upload-menu" class="${this.step === 4 ? "pulse-target" : ""}">⬆ Upload</button><button>＋ New</button><button data-win-action="open-sync-folder" class="${syncStep ? "onedrive-sync-cta pulse-target" : ""}">📁 ${syncStep ? "เปิดโฟลเดอร์ OneDrive ที่ Sync" : "Sync"}</button></div>${this.screen === "onedrive-files" && this.status === "picker" ? `<div class="file-picker"><h3>Open</h3><nav>Quick access · Documents</nav><button data-win-action="choose-upload-file" class="pulse-target">${this.icon("document")}<b>Unit8_Report.docx</b><small>Microsoft Word Document · 840 KB</small></button><footer><button data-win-action="choose-upload-file" class="win-primary">Open</button><button>Cancel</button></footer></div>` : `<div class="onedrive-list"><div><input type="checkbox" disabled><b>Name</b><span>Modified</span><span>File size</span></div>${this.status === "uploaded" || this.fileSelected || this.step >= 6 ? `<button data-win-action="select-uploaded-file" class="${this.fileSelected ? "selected" : "pulse-target"}"><input type="checkbox" ${this.fileSelected ? "checked" : ""}><b>${this.icon("document")} Unit8_Report.docx</b><span>Just now</span><span>840 KB</span></button>${this.fileSelected && !syncStep ? `<div class="file-actions"><button data-win-action="share-file" class="pulse-target">↗ Share</button><button>Download</button><button>Delete</button></div>` : ""}` : `<div class="onedrive-empty">${this.icon("cloud")}<b>Files you upload will appear here</b></div>`}</div>`}</main>${menu}</div>`;
   }
 
   oneDriveExplorerHTML() {
     const menu = this.contextOpen ? `<div class="win-context-menu sync-menu"><button>Open</button><button>Share</button><button>Always keep on this device</button><button data-win-action="free-up-space" class="pulse-target">Free up space</button></div>` : "";
-    const body = `<div class="win-explorer-toolbar"><button>←</button><button>→</button><span>OneDrive - Training account</span><label>⌕ Search OneDrive</label></div><div class="win-explorer-layout"><nav><b>Home</b><span>Desktop</span><span>Documents</span><b>☁️ OneDrive</b><span>This PC</span></nav><main><h3>OneDrive files</h3><button class="sync-file selected" data-win-action="sync-file-menu" data-win-context="sync-file-menu"><span>📄</span><b>Unit8_Report.docx</b><small>✓ Available on this device</small><em>⋯</em></button>${menu}</main></div>`;
+    const body = `<div class="win-explorer-toolbar"><button>←</button><button>→</button><span>OneDrive - Training account</span><label>⌕ Search OneDrive</label></div><div class="win-explorer-layout"><nav><b>Home</b><span>Desktop</span><span>Documents</span><b>☁️ OneDrive</b><span>This PC</span></nav><main><h3>OneDrive files</h3><button class="sync-file selected ${this.contextOpen ? "" : "pulse-target"}" data-win-action="sync-file-menu" data-win-context="sync-file-menu"><span>📄</span><b>Unit8_Report.docx</b><small>✓ Available on this device</small><em>⋯</em></button>${menu}</main></div>`;
     return this.windowFrame("File Explorer", body, { icon: "folder", wide: true });
   }
 
@@ -380,6 +390,7 @@ class WindowsPracticeSimulator {
     }
     if (action === "open-explorer") {
       if (id === "checkdisk" && this.step === 0) { this.screen = "explorer"; this.step++; this.status = "เปิด This PC แล้ว — เลือก Windows (C:)"; return this.render(); }
+      if (id === "onedrive" && this.step === 9) { this.screen = "explorer"; this.contextOpen = false; this.step++; this.status = "เปิดโฟลเดอร์ OneDrive แล้ว — คลิกไฟล์เพื่อดูเมนู"; return this.render(); }
       return this.hint("ยังไม่ใช่ขั้นตอนเปิด File Explorer");
     }
     if (action === "select-drive" && id === "checkdisk" && this.step === 1) { this.selected = true; this.step++; this.status = "เลือกไดรฟ์แล้ว — คลิกขวาหรือแตะปุ่ม ⋯"; return this.render(); }
