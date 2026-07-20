@@ -172,6 +172,19 @@ class WindowsPracticeSimulator {
       </aside>
     </div>`;
     this.bind();
+    const completionButton = this.mount.querySelector('[data-win-action="continue"]');
+    if (completionButton) {
+      const complete = this.onComplete;
+      completionButton.onclick = event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (completionButton.dataset.advanced === "true") return;
+        completionButton.dataset.advanced = "true";
+        this.continueHandled = true;
+        this.destroy();
+        complete?.();
+      };
+    }
   }
 
   bind() {

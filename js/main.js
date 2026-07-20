@@ -169,6 +169,13 @@ function teamCoach(mission) {
   return `<aside><div class="coach-panel"><img src="${catIdlePath(cat.id)}" alt=""><div><strong>${escapeHTML(cat.name)}</strong><p id="coachText">${escapeHTML(mission.intro[1])}</p></div></div><div class="fact-stack">${mission.facts.map(fact => `<div class="fact-chip">${escapeHTML(fact)}</div>`).join("")}</div></aside>`;
 }
 
+function continuePracticeFlow(mission) {
+  game.practiceSim?.destroy();
+  game.practiceSim = null;
+  if (mission.id === "checkdisk") renderSectorScan();
+  else finishPractice();
+}
+
 function renderPractice() {
   const mission = game.currentMission;
   game.practiceSim?.destroy();
@@ -176,11 +183,7 @@ function renderPractice() {
     mount: $("missionMount"),
     mission,
     onMistake: amount => practiceDamage(amount),
-    onComplete: () => {
-      game.practiceSim = null;
-      if (mission.id === "checkdisk") renderSectorScan();
-      else finishPractice();
-    }
+    onComplete: () => continuePracticeFlow(mission)
   });
 }
 
