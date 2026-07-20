@@ -15,6 +15,36 @@ function escapeHTML(value) {
   return String(value).replace(/[&<>'"]/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
 }
 
+function randomChoiceIndex(max) {
+  if (globalThis.crypto?.getRandomValues) return globalThis.crypto.getRandomValues(new Uint32Array(1))[0] % max;
+  return Math.floor(Math.random() * max);
+}
+
+function shuffledChoices(values) {
+  const original = [...values];
+  const shuffled = [...values];
+  for (let index = shuffled.length - 1; index > 0; index--) {
+    const target = randomChoiceIndex(index + 1);
+    [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
+  }
+  if (shuffled.length > 1 && shuffled.every((value, index) => value === original[index])) shuffled.push(shuffled.shift());
+  return shuffled;
+}
+
+function shuffleUtilityDock() {
+  const dock = $("abilityDock");
+  if (!dock) return;
+  const buttons = [...dock.querySelectorAll(":scope > [data-tool]")];
+  const anchor = dock.querySelector(":scope > :not([data-tool])");
+  shuffledChoices(buttons).forEach(button => {
+    button.classList.remove("choice-shuffled");
+    dock.insertBefore(button, anchor);
+    void button.offsetWidth;
+    button.classList.add("choice-shuffled");
+    setTimeout(() => button.classList.remove("choice-shuffled"), 480);
+  });
+}
+
 function loadSave() {
   try {
     const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
@@ -336,8 +366,9 @@ async function renderBattle(finalMode) {
   const mission = game.currentMission;
   $("scr-game").classList.add("battle-mode");
   sound.playMusic(finalMode ? "boss" : "battle");
+  const randomizedUtilities = finalMode ? shuffledChoices(Object.entries(UTILITIES)) : [];
   const utilityButtons = finalMode
-    ? Object.entries(UTILITIES).map(([id,utility])=>`<button class="ability-btn" data-tool="${id}" style="--ability:${utility.color}" type="button"><b>${utility.icon} ${utility.name}</b><small>${utility.symptom}</small><i></i></button>`).join("") + `<button class="ability-btn special-ability" data-special="guardian" style="--ability:#53d6a5" type="button"><img src="${PACK}/Cat Guardian/Idle/Enemy-Idle_00.png" alt=""><b>Cat Guardian</b><small>ฟื้นฟูฐาน</small><i></i></button><button class="ability-btn special-ability" data-special="boxing" style="--ability:#ffbd4a" type="button"><img src="${PACK}/CatBoxing/Idle/CatBoxing-Idle_00.png" alt=""><b>Cat Boxing</b><small>หมัดทำลายเกราะ</small><i></i></button>`
+    ? randomizedUtilities.map(([id,utility])=>`<button class="ability-btn" data-tool="${id}" style="--ability:${utility.color}" type="button"><b>${utility.icon} ${utility.name}</b><small>${utility.symptom}</small><i></i></button>`).join("") + `<button class="ability-btn special-ability" data-special="guardian" style="--ability:#53d6a5" type="button"><img src="${PACK}/Cat Guardian/Idle/Enemy-Idle_00.png" alt=""><b>Cat Guardian</b><small>ฟื้นฟูฐาน</small><i></i></button><button class="ability-btn special-ability" data-special="boxing" style="--ability:#ffbd4a" type="button"><img src="${PACK}/CatBoxing/Idle/CatBoxing-Idle_00.png" alt=""><b>Cat Boxing</b><small>หมัดทำลายเกราะ</small><i></i></button>`
     : `<button class="ability-btn" id="missionAbility" data-tool="${mission.id}" style="--ability:${UTILITIES[mission.id].color}" type="button"><b>${UTILITIES[mission.id].icon} ${UTILITIES[mission.id].name}</b><small>พลังยังไม่เต็ม</small><i></i></button>`;
   const combatSkillButtons = `<button class="ability-btn combat-skill ready" data-combat-skill="lightning" style="--ability:#62dfff" type="button"><b>⚡ THUNDER STRIKE</b><small>ฟ้าผ่าศัตรูในพื้นที่ · พร้อมใช้</small><i style="width:100%"></i></button><button class="ability-btn combat-skill ready" data-combat-skill="bomb" style="--ability:#ff914d" type="button"><b>💣 MEGA BOMB</b><small>ระเบิดวงกว้าง · พร้อมใช้</small><i style="width:100%"></i></button>`;
   const controlledCat = CAT_TEAM[mission.team[0] - 1];
@@ -462,8 +493,8 @@ function updateBossAlert(tool,timedOut=false,used=null) {
   alert.className=`boss-alert diagnosis-card ${timedOut?"danger":""}`;
   alert.style.setProperty("--diagnosis-color",UTILITIES[tool].color);
   alert.style.setProperty("--diagnosis-time",`${seconds}s`);
-  alert.innerHTML=`<div class="symptom-graphic" data-tool="${tool}"><span>${visual.icon}</span><i></i><em>${visual.signal}</em></div><div class="symptom-copy"><small>${timedOut?"⚠ ระบบเสียหาย · สแกนซ้ำ":"PC-8 DIAGNOSTIC ALERT"}</small><strong>${visual.code}</strong><b>${UTILITIES[tool].symptom}</b><p>${visual.detail} — เลือกเครื่องมือรักษาด้านล่าง</p></div><div class="diagnosis-shield"><span>เกราะบอส</span><b>LOCKED</b><small>${seconds} SEC</small></div><div class="diagnosis-timer"><i></i></div>`;
-  if(!timedOut)sound.play("diagnosis");
+  alert.innerHTML=`<div class="symptom-graphic" data-tool="${tool}"><span>${visual.icon}</span><i></i><em>${visual.signal}</em></div><div class="symptom-copy"><small>${timedOut?"⚠ ระบบเสียหาย · สแกนซ้ำ":"PC-8 DIAGNOSTIC ALERT"}</small><strong>${visual.code}</strong><b>${UTILITIES[tool].symptom}</b><p>${visual.detail} — อ่านชื่อเครื่องมือแล้วเลือกจากตำแหน่งที่สุ่มใหม่</p></div><div class="diagnosis-shield"><span>เกราะบอส</span><b>LOCKED</b><small>${seconds} SEC</small></div><div class="diagnosis-timer"><i></i></div>`;
+  if(!timedOut){shuffleUtilityDock();sound.play("diagnosis");}
 }
 
 function flashAbility(selector,ok) {
