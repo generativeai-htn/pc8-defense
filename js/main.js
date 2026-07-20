@@ -7,7 +7,8 @@ const UNIT_ORDER = ["checkdisk", "defrag", "cleanup", "antivirus", "onedrive"];
 
 const game = {
   completed: new Set(), currentMission: null, battle: null, integrity: 100,
-  previousScreen: "scr-hub", activeScreen: "scr-start", practiceDone: false, practiceSim: null
+  previousScreen: "scr-hub", activeScreen: "scr-start", practiceDone: false, practiceSim: null,
+  questTimer: null
 };
 
 function escapeHTML(value) {
@@ -27,6 +28,8 @@ function saveProgress() {
 }
 
 function showScreen(id) {
+  clearTimeout(game.questTimer);
+  game.questTimer = null;
   if (game.battle && id !== "scr-game") { game.battle.stop(); game.battle = null; }
   if (game.practiceSim && id !== "scr-game") { game.practiceSim.destroy(); game.practiceSim = null; }
   document.querySelectorAll(".screen").forEach(screen => screen.classList.toggle("active", screen.id === id));
@@ -173,7 +176,36 @@ function continuePracticeFlow(mission) {
   game.practiceSim?.destroy();
   game.practiceSim = null;
   if (mission.id === "checkdisk") renderSectorScan();
-  else finishPractice();
+  else {
+    game.practiceDone = true;
+    setPhase(1);
+    renderBattle(false);
+  }
+}
+
+function showQuestAssistant({ title, message, actionLabel, onContinue, autoDelay = 4600 }) {
+  clearTimeout(game.questTimer);
+  const mission = game.currentMission;
+  const cat = CAT_TEAM[mission.team[0] - 1];
+  let advanced = false;
+  const advance = () => {
+    if (advanced) return;
+    advanced = true;
+    clearTimeout(game.questTimer);
+    game.questTimer = null;
+    onContinue();
+  };
+  $("missionMount").innerHTML = `<div class="quest-stage" role="dialog" aria-live="assertive" aria-label="ภารกิจสำเร็จ">
+    <div class="quest-stage-glow"></div>
+    <img class="quest-stage-win" src="${PACK}/Ui/WinPopUp.png" alt="Mission complete">
+    <section class="quest-stage-npc">
+      <img src="${catIdlePath(cat.id)}" alt="${escapeHTML(cat.name)}">
+      <div><small>QUEST ASSISTANT · MISSION UPDATE</small><h3>${escapeHTML(title)}</h3><p><b>${escapeHTML(cat.name)}:</b> ${escapeHTML(message)}</p><button id="questContinueBtn" class="game-btn primary" type="button">${escapeHTML(actionLabel)} →</button><i><u style="--quest-delay:${autoDelay}ms"></u></i><em>ระบบจะพาไปต่ออัตโนมัติ</em></div>
+    </section>
+  </div>`;
+  $("questContinueBtn").addEventListener("click", advance);
+  game.questTimer = setTimeout(advance, autoDelay);
+  sound.play("waveClear");
 }
 
 function renderPractice() {
@@ -279,14 +311,13 @@ function renderCleanup() {
 function finishPractice() {
   if (game.practiceDone) return;
   game.practiceDone = true;
-  if (!$("practiceActions")) {
-    const mission = game.currentMission;
-    $("missionMount").innerHTML = `<div class="sim-layout"><section class="sim-console practice-ready"><p class="eyebrow">WINDOWS WORKFLOW COMPLETE</p><h3>ปฏิบัติใน Windows จำลองสำเร็จ</h3><p class="sim-instruction">คุณใช้งาน ${escapeHTML(UTILITIES[mission.id].name)} ตามขั้นตอนจริงครบแล้ว พร้อมนำความรู้ไปใช้ในสนามป้องกันระบบ</p><div class="takeaways">${mission.facts.map((fact,index)=>`<div class="takeaway"><b>${index+1}</b> ${escapeHTML(fact)}</div>`).join("")}</div><div id="practiceActions" class="sim-actions"></div></section>${teamCoach(mission)}</div>`;
-  }
-  const actions = $("practiceActions");
-  actions.innerHTML = `<button id="toBattleBtn" class="game-btn primary xl" type="button">นำความรู้ไปป้องกันระบบ →</button>`;
-  $("toBattleBtn").addEventListener("click",()=>{setPhase(1);renderBattle(false);});
-  sound.play("waveClear");
+  const mission = game.currentMission;
+  showQuestAssistant({
+    title: "ฝึกปฏิบัติสำเร็จ!",
+    message: `ยินดีด้วย คุณใช้ ${UTILITIES[mission.id].name} แก้ปัญหาได้ถูกต้องแล้ว ต่อไปนำความรู้ไปป้องกันระบบจริงกันเลย`,
+    actionLabel: "เข้าสู่สนามป้องกันระบบ",
+    onContinue: () => { setPhase(1); renderBattle(false); }
+  });
 }
 
 async function renderBattle(finalMode) {

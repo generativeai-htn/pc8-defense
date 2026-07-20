@@ -20,6 +20,7 @@ class WindowsPracticeSimulator {
     this.npcOpen = true;
     this.cleanupSelected = new Set();
     this.timer = null;
+    this.completionTimer = null;
     this.destroyed = false;
     this.continueHandled = false;
     this.steps = this.getSteps();
@@ -64,6 +65,7 @@ class WindowsPracticeSimulator {
   destroy() {
     this.destroyed = true;
     clearTimeout(this.timer);
+    clearTimeout(this.completionTimer);
     this.mount.removeEventListener("click", this.boundContinue, true);
   }
 
@@ -172,6 +174,9 @@ class WindowsPracticeSimulator {
       </aside>
     </div>`;
     this.bind();
+    if (this.completed && !this.completionTimer) {
+      this.completionTimer = setTimeout(() => this.advanceFromCompletion(), 4200);
+    }
     const completionButton = this.mount.querySelector('[data-win-action="continue"]');
     if (completionButton) {
       const complete = this.onComplete;
@@ -340,7 +345,18 @@ class WindowsPracticeSimulator {
   }
 
   completionHTML() {
-    return `<div class="win-modal-layer success"><section class="win-complete-dialog"><span>✓</span><h2>ปฏิบัติการสำเร็จ</h2><p>คุณทำขั้นตอนใน ${this.esc(UTILITIES[this.mission.id].name)} ครบตาม Workflow แล้ว</p><button data-win-action="continue" class="win-primary" type="button" autofocus>เข้าสู่ขั้นตอนถัดไป</button><small>กด Enter หรือ Space เพื่อไปต่อได้</small></section></div>`;
+    const cat = CAT_TEAM[this.mission.team[0] - 1];
+    const next = this.mission.id === "checkdisk" ? "ไปซ่อมเซกเตอร์ที่เสียหายกันต่อเลย" : "ไปใช้ความรู้นี้ป้องกันระบบกันต่อเลย";
+    return `<div class="win-modal-layer success quest-complete-layer" role="dialog" aria-live="assertive" aria-label="ภารกิจสำเร็จ">
+      <section class="quest-complete-card">
+        <img class="quest-win-art" src="${PACK}/Ui/WinPopUp.png" alt="Mission complete">
+        <div class="quest-complete-copy"><span>✓</span><p>ทำขั้นตอน ${this.esc(UTILITIES[this.mission.id].name)} ครบตาม Workflow แล้ว</p></div>
+      </section>
+      <section class="quest-npc-arrival">
+        <img src="${catIdlePath(cat.id)}" alt="${this.esc(cat.name)}">
+        <div><small>QUEST ASSISTANT</small><h3>${this.esc(cat.name)}</h3><p>ยินดีด้วย! คุณทำได้ถูกต้องทุกขั้นตอน ${this.esc(next)}</p><button data-win-action="continue" type="button">ไปต่อทันที →</button><i><u></u></i><em>ระบบจะพาไปขั้นตอนถัดไปอัตโนมัติ</em></div>
+      </section>
+    </div>`;
   }
 
   handleInput(type, value) {
