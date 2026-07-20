@@ -339,7 +339,7 @@ async function renderBattle(finalMode) {
     : `<button class="ability-btn" id="missionAbility" data-tool="${mission.id}" style="--ability:${UTILITIES[mission.id].color}" type="button"><b>${UTILITIES[mission.id].icon} ${UTILITIES[mission.id].name}</b><small>พลังยังไม่เต็ม</small><i></i></button>`;
   const combatSkillButtons = `<button class="ability-btn combat-skill ready" data-combat-skill="lightning" style="--ability:#62dfff" type="button"><b>⚡ THUNDER STRIKE</b><small>ฟ้าผ่าศัตรูในพื้นที่ · พร้อมใช้</small><i style="width:100%"></i></button><button class="ability-btn combat-skill ready" data-combat-skill="bomb" style="--ability:#ff914d" type="button"><b>💣 MEGA BOMB</b><small>ระเบิดวงกว้าง · พร้อมใช้</small><i style="width:100%"></i></button>`;
   const controlledCat = CAT_TEAM[mission.team[0] - 1];
-  $("missionMount").innerHTML = `<div class="battle-shell"><div class="battle-hud"><div><span>WAVE</span><strong id="waveText">PREPARE</strong><span>กำจัด</span><strong id="defeatText">0</strong></div><div class="hero-status"><img src="${catIdlePath(controlledCat.id)}" alt=""><span>ผู้เล่นควบคุม</span><strong>${escapeHTML(controlledCat.name)}</strong></div><div><span>เป้าหมาย</span><strong>${finalMode ? "รักษาอาการบอสให้ถูก" : "เก็บ Data Core เพื่อชาร์จพลัง"}</strong></div></div><div id="bossAlert" class="boss-alert" ${finalMode ? "" : "hidden"}>รอวิเคราะห์อาการของบอส...</div><div class="battle-canvas-wrap"><canvas id="battleCanvas"></canvas><div id="learningToast" class="learning-toast"><b>KNOWLEDGE CORE</b><span>เดินเก็บ Data Core เพื่อรับความรู้และชาร์จ Ability</span></div><div class="battle-tip">WASD/ปุ่มลูกศร = เดิน · เมาส์ = เล็ง · กดค้าง/Spacebar = ยิง · เดินเก็บ DATA CORE · กดสกิลด้านล่าง</div><div id="mobileControls" class="mobile-controls"><div class="move-pad"><button data-move="up" aria-label="เดินขึ้น">▲</button><button data-move="left" aria-label="เดินซ้าย">◀</button><button data-move="down" aria-label="เดินลง">▼</button><button data-move="right" aria-label="เดินขวา">▶</button></div><button class="mobile-fire" data-mobile-fire aria-label="ยิง">FIRE</button></div><div id="battleLoading" class="battle-loading"><i></i><p>กำลังเตรียมตัวละครจาก Game Pack...</p></div></div><div id="abilityDock" class="ability-dock">${utilityButtons}${combatSkillButtons}</div></div>`;
+  $("missionMount").innerHTML = `<div class="battle-shell"><div class="battle-hud"><div><span>WAVE</span><strong id="waveText">PREPARE</strong><span>กำจัด</span><strong id="defeatText">0</strong></div><div class="hero-status"><img src="${catIdlePath(controlledCat.id)}" alt=""><span>ผู้เล่นควบคุม</span><strong>${escapeHTML(controlledCat.name)}</strong></div><div><span>เป้าหมาย</span><strong>${finalMode ? "รักษาอาการบอสให้ถูก" : "เก็บ Data Core เพื่อชาร์จพลัง"}</strong></div></div><div class="battle-canvas-wrap"><canvas id="battleCanvas"></canvas><div id="bossAlert" class="boss-alert boss-standby" ${finalMode ? "" : "hidden"}><span>⌁</span><b>DIAGNOSTIC SCANNER</b><small>รอวิเคราะห์อาการของบอส...</small></div><div id="learningToast" class="learning-toast"><b>KNOWLEDGE CORE</b><span>เดินเก็บ Data Core เพื่อรับความรู้และชาร์จ Ability</span></div><div class="battle-tip">WASD/ปุ่มลูกศร = เดิน · เมาส์ = เล็ง · กดค้าง/Spacebar = ยิง · เดินเก็บ DATA CORE · กดสกิลด้านล่าง</div><div id="mobileControls" class="mobile-controls"><div class="move-pad"><button data-move="up" aria-label="เดินขึ้น">▲</button><button data-move="left" aria-label="เดินซ้าย">◀</button><button data-move="down" aria-label="เดินลง">▼</button><button data-move="right" aria-label="เดินขวา">▶</button></div><button class="mobile-fire" data-mobile-fire aria-label="ยิง">FIRE</button></div><div id="battleLoading" class="battle-loading"><i></i><p>กำลังเตรียมตัวละครจาก Game Pack...</p></div></div><div id="abilityDock" class="ability-dock">${utilityButtons}${combatSkillButtons}</div></div>`;
   const battle = new DefenseBattle({ canvas: $("battleCanvas"), mission, finalMode, sound, callbacks: {
     onLoad: ratio => { const p=$("battleLoading").querySelector("p");if(p)p.textContent=`โหลดกำลังรบ ${Math.round(ratio*100)}%`; },
     onIntegrity: updateIntegrity,
@@ -350,7 +350,8 @@ async function renderBattle(finalMode) {
         sound.playMusic("boss");
         const alert = $("bossAlert");
         alert.hidden = false;
-        alert.innerHTML = "⚠ <b>GIANT BOSS INCOMING</b> — เล็งยิงจุดศูนย์กลางและใช้ Ability ทำลายเกราะ!";
+        alert.className = "boss-alert boss-incoming";
+        alert.innerHTML = "<span>⚠</span><b>GIANT BOSS INCOMING</b><small>เตรียมสแกนอาการและเลือกเครื่องมือรักษา</small>";
       } else if (!finalMode) {
         $("bossAlert").hidden = true;
       }
@@ -437,9 +438,30 @@ function updateCombatSkillButtons(cooldowns) {
 
 function updateBossAlert(tool,timedOut=false,used=null) {
   const alert=$("bossAlert");if(!alert)return;
-  if(used){alert.innerHTML=`เลือก <b>${UTILITIES[used].name}</b> ถูกต้อง — เกราะบอสแตก!`;return;}
-  if(!tool){alert.innerHTML="กำจัดภัยคุกคามแล้ว เตรียมวิเคราะห์บอสตัวถัดไป...";return;}
-  alert.innerHTML=`${timedOut?"ระบบเสียหาย! ":"ตรวจพบอาการ: "}<b>${UTILITIES[tool].symptom}</b> — เลือกเครื่องมือรักษาให้ตรงจุด`;
+  if(used){
+    alert.className="boss-alert diagnosis-result success";
+    alert.innerHTML=`<span>✓</span><div><small>DIAGNOSIS CORRECT</small><b>${UTILITIES[used].name}</b><p>รักษาตรงอาการ — เกราะบอสแตก!</p></div>`;
+    return;
+  }
+  if(!tool){
+    alert.className="boss-alert diagnosis-result clear";
+    alert.innerHTML="<span>◆</span><div><small>THREAT NEUTRALIZED</small><b>เตรียมสแกนบอสตัวถัดไป</b></div>";
+    return;
+  }
+  const visuals={
+    checkdisk:{code:"DRIVE ERROR",icon:"💾",signal:"BAD SECTOR",detail:"โครงสร้างไฟล์เสียหาย"},
+    defrag:{code:"PERFORMANCE DROP",icon:"▦",signal:"FRAGMENTED",detail:"บล็อกข้อมูลกระจัดกระจาย"},
+    cleanup:{code:"STORAGE CRITICAL",icon:"🗑",signal:"DISK 99%",detail:"พื้นที่จัดเก็บใกล้เต็ม"},
+    antivirus:{code:"MALWARE ALERT",icon:"☣",signal:"THREAT FOUND",detail:"พบโปรแกรมและป๊อปอัปผิดปกติ"},
+    onedrive:{code:"DATA AT RISK",icon:"☁",signal:"NOT BACKED UP",detail:"ข้อมูลสำคัญเสี่ยงสูญหาย"}
+  };
+  const visual=visuals[tool];
+  const seconds=timedOut?7:9;
+  alert.className=`boss-alert diagnosis-card ${timedOut?"danger":""}`;
+  alert.style.setProperty("--diagnosis-color",UTILITIES[tool].color);
+  alert.style.setProperty("--diagnosis-time",`${seconds}s`);
+  alert.innerHTML=`<div class="symptom-graphic" data-tool="${tool}"><span>${visual.icon}</span><i></i><em>${visual.signal}</em></div><div class="symptom-copy"><small>${timedOut?"⚠ ระบบเสียหาย · สแกนซ้ำ":"PC-8 DIAGNOSTIC ALERT"}</small><strong>${visual.code}</strong><b>${UTILITIES[tool].symptom}</b><p>${visual.detail} — เลือกเครื่องมือรักษาด้านล่าง</p></div><div class="diagnosis-shield"><span>เกราะบอส</span><b>LOCKED</b><small>${seconds} SEC</small></div><div class="diagnosis-timer"><i></i></div>`;
+  if(!timedOut)sound.play("diagnosis");
 }
 
 function flashAbility(selector,ok) {
@@ -449,7 +471,7 @@ function flashAbility(selector,ok) {
 
 function flashWrongTool(used,needed) {
   flashAbility(`[data-tool="${used}"]`,false);
-  const alert=$("bossAlert");if(alert)alert.innerHTML=`เครื่องมือไม่ตรงอาการ — <b>${UTILITIES[needed].symptom}</b> ต้องใช้เครื่องมืออีกชนิด`;
+  const alert=$("bossAlert");if(alert){alert.classList.add("wrong-diagnosis");const copy=alert.querySelector(".symptom-copy p");if(copy)copy.textContent="เลือกไม่ตรงอาการ! ตรวจดูกราฟิกและลองเครื่องมือชนิดอื่น";setTimeout(()=>alert.classList.remove("wrong-diagnosis"),650);}
 }
 
 function showBattleLoss() {

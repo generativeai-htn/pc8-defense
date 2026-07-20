@@ -33,6 +33,7 @@ class SoundManager {
       pickup: { src: "assets/audio/sfx/pickup.wav", volume: .43, cooldown: 90, rate: [1.05, 1.16] },
       ability: { src: "assets/audio/sfx/enemy_die.wav", volume: .62, cooldown: 220, rate: [.86, .96] },
       bossEnter: { src: "assets/audio/sfx/boss_alarm.wav", volume: .48, cooldown: 900, maxDuration: 1250 },
+      diagnosis: { src: "assets/audio/sfx/scene_open.wav", volume: .55, cooldown: 700, rate: [.96, 1.02] },
       enemyDie: { src: "assets/audio/sfx/enemy_die.wav", volume: .44, cooldown: 75, rate: [.9, 1.08] },
       waveClear: { src: "assets/audio/sfx/wave_clear.wav", volume: .5, cooldown: 350 },
       victory: { src: "assets/audio/sfx/victory.wav", volume: .65, cooldown: 500 },
