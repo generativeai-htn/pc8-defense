@@ -12,8 +12,10 @@ class DefenseBattle {
     this.callbacks = options.callbacks || {};
     this.images = new Map();
     this.defenders = [];
+    this.player = null;
     this.enemies = [];
     this.projectiles = [];
+    this.pickups = [];
     this.effects = [];
     this.baseX = 375;
     this.integrity = 100;
@@ -35,8 +37,30 @@ class DefenseBattle {
     this.requiredTool = null;
     this.shieldTimer = 0;
     this.pointer = { x: -1, y: -1 };
-    this.boundClick = event => this.handleClick(event);
-    this.canvas.addEventListener("click", this.boundClick);
+    this.aiming = false;
+    this.firing = false;
+    this.fireTimer = 0;
+    this.fireRate = .16;
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.muzzle = 0;
+    this.keys = new Set();
+    this.virtualKeys = new Set();
+    this.keyboardFiring = false;
+    this.virtualFiring = false;
+    this.factIndex = 0;
+    this.boundMove = event => this.handlePointerMove(event);
+    this.boundDown = event => this.handlePointerDown(event);
+    this.boundUp = () => { this.firing = false; };
+    this.boundLeave = () => { this.aiming = false; this.firing = false; };
+    this.boundKey = event => this.handleKeyDown(event);
+    this.boundKeyUp = event => this.handleKeyUp(event);
+    this.canvas.addEventListener("pointermove", this.boundMove);
+    this.canvas.addEventListener("pointerdown", this.boundDown);
+    window.addEventListener("pointerup", this.boundUp);
+    this.canvas.addEventListener("pointerleave", this.boundLeave);
+    window.addEventListener("keydown", this.boundKey);
+    window.addEventListener("keyup", this.boundKeyUp);
   }
 
   async load() {
@@ -73,13 +97,19 @@ class DefenseBattle {
 
   setupDefenders() {
     const ids = this.mission.team;
+    const playerId = ids[0];
+    this.player = {
+      id: playerId, x: 470, y: 535, speed: 285, state: "idle", anim: 0,
+      facingLeft: false, invulnerable: 0
+    };
+    const supportIds = ids.slice(1);
     const positions = this.finalMode
-      ? ids.map((_, index) => ({ x: 100 + (index % 5) * 54, y: 238 + Math.floor(index / 5) * 157 }))
-      : [{ x: 135, y: 270 }, { x: 225, y: 420 }, { x: 120, y: 570 }];
-    this.defenders = ids.map((id, index) => ({
-      id, x: positions[index].x, y: positions[index].y, cooldown: .15 + (index % 3) * .17,
-      fireRate: this.finalMode ? 1.45 + (index % 4) * .08 : .82 + index * .08,
-      damage: this.finalMode ? 10 : 17 + index * 2, state: "idle", anim: index * .8
+      ? supportIds.map((_, index) => ({ x: 90 + (index % 5) * 54, y: 235 + Math.floor(index / 5) * 158 }))
+      : [{ x: 145, y: 330 }, { x: 155, y: 575 }];
+    this.defenders = supportIds.map((id, index) => ({
+      id, x: positions[index].x, y: positions[index].y, cooldown: .8 + (index % 3) * .4,
+      fireRate: this.finalMode ? 3.6 + (index % 4) * .3 : 2.8 + index * .3,
+      damage: this.finalMode ? 3 : 4 + index, state: "idle", anim: index * .8
     }));
   }
 
@@ -93,7 +123,14 @@ class DefenseBattle {
 
   stop() {
     this.running = false;
-    this.canvas.removeEventListener("click", this.boundClick);
+    this.canvas.removeEventListener("pointermove", this.boundMove);
+    this.canvas.removeEventListener("pointerdown", this.boundDown);
+    window.removeEventListener("pointerup", this.boundUp);
+    this.canvas.removeEventListener("pointerleave", this.boundLeave);
+    window.removeEventListener("keydown", this.boundKey);
+    window.removeEventListener("keyup", this.boundKeyUp);
+    this.keys.clear();
+    this.virtualKeys.clear();
   }
 
   pause(value = true) { this.paused = value; }
@@ -110,15 +147,23 @@ class DefenseBattle {
   update(dt) {
     this.time += dt;
     this.manualCooldown = Math.max(0, this.manualCooldown - dt);
+    this.muzzle = Math.max(0, this.muzzle - dt);
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) this.combo = 0;
+    }
     Object.keys(this.toolCooldowns).forEach(key => this.toolCooldowns[key] = Math.max(0, this.toolCooldowns[key] - dt));
     Object.keys(this.specialCooldown).forEach(key => this.specialCooldown[key] = Math.max(0, this.specialCooldown[key] - dt));
-    if (!this.finalMode) this.charge = Math.min(100, this.charge + dt * 4.2);
+    if (!this.finalMode) this.charge = Math.min(100, this.charge + dt * .65);
     this.callbacks.onCharge?.(this.charge);
 
+    this.updatePlayer(dt);
+    this.updatePlayerFire(dt);
     this.updateWaves(dt);
     this.updateDefenders(dt);
     this.updateEnemies(dt);
     this.updateProjectiles(dt);
+    this.updatePickups(dt);
     this.updateEffects(dt);
 
     if (this.finalMode && this.requiredTool) {
@@ -130,6 +175,29 @@ class DefenseBattle {
       }
     }
     this.checkFinished();
+  }
+
+  updatePlayer(dt) {
+    if (!this.player) return;
+    const pressed = code => this.keys.has(code);
+    let dx = 0;
+    let dy = 0;
+    if (pressed("KeyA") || pressed("ArrowLeft") || this.virtualKeys.has("left")) dx -= 1;
+    if (pressed("KeyD") || pressed("ArrowRight") || this.virtualKeys.has("right")) dx += 1;
+    if (pressed("KeyW") || pressed("ArrowUp") || this.virtualKeys.has("up")) dy -= 1;
+    if (pressed("KeyS") || pressed("ArrowDown") || this.virtualKeys.has("down")) dy += 1;
+    if (dx || dy) {
+      const length = Math.hypot(dx, dy) || 1;
+      this.player.x += dx / length * this.player.speed * dt;
+      this.player.y += dy / length * this.player.speed * dt;
+      this.player.x = Math.max(405, Math.min(1150, this.player.x));
+      this.player.y = Math.max(205, Math.min(675, this.player.y));
+      if (!this.aiming) this.player.facingLeft = dx < 0;
+    }
+    if (this.aiming) this.player.facingLeft = this.pointer.x < this.player.x;
+    this.player.state = this.muzzle > 0 ? "shoot" : "idle";
+    this.player.anim += dt * (this.player.state === "shoot" ? 15 : (dx || dy ? 10 : 7));
+    this.player.invulnerable = Math.max(0, this.player.invulnerable - dt);
   }
 
   updateWaves(dt) {
@@ -259,9 +327,42 @@ class DefenseBattle {
       enemy.anim = 0;
       enemy.deadTime = 0;
       this.totalDefeated++;
-      this.charge = Math.min(100, this.charge + 12);
+      this.charge = Math.min(100, this.charge + 3);
+      if (enemy.kind === "boss" || this.totalDefeated % 2 === 1) this.dropKnowledgeCore(enemy);
       this.sound?.play("enemyDie");
     } else if (Math.random() < .3) this.sound?.play("hit");
+  }
+
+  dropKnowledgeCore(enemy) {
+    this.pickups.push({
+      x: Math.max(430, Math.min(1130, enemy.x)),
+      y: Math.max(220, Math.min(655, enemy.y - 28)),
+      age: 0, life: 16, pulse: Math.random() * Math.PI * 2, collected: false
+    });
+  }
+
+  updatePickups(dt) {
+    if (!this.player) return;
+    this.pickups.forEach(pickup => {
+      pickup.age += dt;
+      pickup.pulse += dt * 4;
+      if (pickup.collected) return;
+      const distance = Math.hypot(this.player.x - pickup.x, (this.player.y - 55) - pickup.y);
+      if (distance < 62) {
+        pickup.collected = true;
+        if (this.finalMode) {
+          this.integrity = Math.min(100, this.integrity + 3);
+          this.callbacks.onIntegrity?.(this.integrity);
+        } else {
+          this.charge = Math.min(100, this.charge + 22);
+        }
+        const facts = this.mission.facts || [];
+        const fact = facts.length ? facts[this.factIndex++ % facts.length] : "เก็บข้อมูลสำเร็จ — ระบบพร้อมทำงานต่อ";
+        this.callbacks.onFact?.(fact, this.finalMode ? "SYSTEM +3" : "ABILITY +22");
+        this.sound?.play("hit");
+      }
+    });
+    this.pickups = this.pickups.filter(pickup => !pickup.collected && pickup.age < pickup.life);
   }
 
   damageBase(amount) {
@@ -272,18 +373,108 @@ class DefenseBattle {
     if (this.integrity <= 0) this.lose();
   }
 
-  handleClick(event) {
-    if (!this.running || this.paused || this.manualCooldown > 0) return;
+  canvasPoint(event) {
     const rect = this.canvas.getBoundingClientRect();
-    const x = (event.clientX - rect.left) * this.canvas.width / rect.width;
-    const y = (event.clientY - rect.top) * this.canvas.height / rect.height;
-    const candidates = this.enemies.filter(enemy => enemy.state === "walk" && Math.abs(enemy.x - x) < (enemy.kind === "boss" ? 115 : 65) && Math.abs(enemy.y - y) < (enemy.kind === "boss" ? 130 : 85));
-    const target = candidates.sort((a, b) => Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0];
-    if (target) {
-      this.manualCooldown = .23;
-      this.hitEnemy(target, target.shielded ? 1 : 11);
-      this.effects.push({ x, y, radius: 10, growth: 80, age: 0, life: .3, color: "#ffffff" });
+    return {
+      x: (event.clientX - rect.left) * this.canvas.width / rect.width,
+      y: (event.clientY - rect.top) * this.canvas.height / rect.height
+    };
+  }
+
+  handlePointerMove(event) {
+    const point = this.canvasPoint(event);
+    this.pointer.x = point.x;
+    this.pointer.y = point.y;
+    this.aiming = true;
+  }
+
+  handlePointerDown(event) {
+    if (event.button !== undefined && event.button !== 0) return;
+    const point = this.canvasPoint(event);
+    this.pointer.x = point.x;
+    this.pointer.y = point.y;
+    this.aiming = true;
+    this.firing = true;
+    this.fireTimer = 0;
+    this.fireAt(point.x, point.y);
+    this.canvas.setPointerCapture?.(event.pointerId);
+  }
+
+  handleKeyDown(event) {
+    if (!this.running || this.paused) return;
+    if (event.target?.closest?.("button, input, textarea, select")) return;
+    const movementCodes = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"];
+    if (movementCodes.includes(event.code)) {
+      event.preventDefault();
+      this.keys.add(event.code);
     }
+    if (event.code === "Space") {
+      event.preventDefault();
+      this.keyboardFiring = true;
+      if (this.pointer.x < 0) this.aimAtNearest();
+      this.fireAt(this.pointer.x, this.pointer.y);
+    }
+  }
+
+  handleKeyUp(event) {
+    this.keys.delete(event.code);
+    if (event.code === "Space") this.keyboardFiring = false;
+  }
+
+  setVirtualMove(direction, active) {
+    if (active) this.virtualKeys.add(direction);
+    else this.virtualKeys.delete(direction);
+  }
+
+  setVirtualFire(active) {
+    this.virtualFiring = active;
+    if (active) {
+      this.aimAtNearest();
+      this.fireAt(this.pointer.x, this.pointer.y);
+    }
+  }
+
+  aimAtNearest() {
+    const target = this.enemies
+      .filter(enemy => enemy.state === "walk")
+      .sort((a, b) => Math.hypot(a.x - this.player.x, a.y - this.player.y) - Math.hypot(b.x - this.player.x, b.y - this.player.y))[0];
+    if (!target) return false;
+    this.pointer.x = target.x;
+    this.pointer.y = target.y - 55;
+    this.aiming = true;
+    return true;
+  }
+
+  updatePlayerFire(dt) {
+    if (!this.firing && !this.keyboardFiring && !this.virtualFiring) return;
+    this.fireTimer -= dt;
+    if (this.fireTimer <= 0) {
+      if (this.virtualFiring) this.aimAtNearest();
+      this.fireAt(this.pointer.x, this.pointer.y);
+      this.fireTimer = this.fireRate;
+    }
+  }
+
+  fireAt(x, y) {
+    if (!this.running || this.paused || this.manualCooldown > 0 || x < 0 || y < 0) return;
+    this.manualCooldown = this.fireRate;
+    this.muzzle = .08;
+    this.sound?.play("shoot");
+    const candidates = this.enemies.filter(enemy => enemy.state === "walk" && Math.abs(enemy.x - x) < (enemy.kind === "boss" ? 120 : 70) && Math.abs(enemy.y - y) < (enemy.kind === "boss" ? 135 : 90));
+    const target = candidates.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
+    this.effects.push({ kind: "tracer", x: this.player.x + (this.player.facingLeft ? -34 : 34), y: this.player.y - 70, x2: x, y2: y, radius: 0, growth: 0, age: 0, life: .1, color: target ? "#ffe27a" : "#ffffff" });
+    this.effects.push({ x, y, radius: 8, growth: 110, age: 0, life: .22, color: target ? "#ffe27a" : "#ffffff" });
+    if (!target) {
+      this.combo = 0;
+      this.comboTimer = 0;
+      return;
+    }
+    const multiplier = 1 + Math.min(this.combo, 10) * .06;
+    const base = this.finalMode ? 12 : 15;
+    const damage = target.shielded ? 1 : Math.round(base * multiplier);
+    this.hitEnemy(target, damage);
+    this.combo++;
+    this.comboTimer = 1.6;
   }
 
   activateUtility(tool) {
@@ -373,6 +564,24 @@ class DefenseBattle {
     else { ctx.fillStyle = "#193854"; ctx.fillRect(0,0,1280,720); }
     ctx.fillStyle = "rgba(7,15,27,.12)"; ctx.fillRect(0,0,1280,720);
 
+    this.pickups.forEach(pickup => {
+      const glow = 18 + Math.sin(pickup.pulse) * 5;
+      ctx.save();
+      ctx.translate(pickup.x, pickup.y);
+      ctx.shadowColor = "#55d8ff";
+      ctx.shadowBlur = 24;
+      ctx.fillStyle = "rgba(85,216,255,.9)";
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-glow / 2, -glow / 2, glow, glow);
+      ctx.restore();
+      ctx.save();
+      ctx.fillStyle = "#e8fbff";
+      ctx.font = "700 13px Chakra Petch, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("DATA CORE", pickup.x, pickup.y - 25);
+      ctx.restore();
+    });
+
     this.defenders.forEach(defender => {
       const frames = defender.state === "shoot" ? 10 : 10;
       const raw = Math.floor(defender.anim) % frames;
@@ -402,14 +611,81 @@ class DefenseBattle {
       }
     });
 
+    if (this.player) {
+      const raw = Math.floor(this.player.anim) % 10;
+      const frame = this.player.state === "shoot" ? raw : raw * 2;
+      const url = this.player.state === "shoot" ? catShootPath(this.player.id, frame) : catIdlePath(this.player.id, frame);
+      const size = this.finalMode ? 145 : 165;
+      ctx.save();
+      ctx.globalAlpha = .42;
+      ctx.fillStyle = "#06101e";
+      ctx.beginPath();
+      ctx.ellipse(this.player.x, this.player.y - 5, 52, 15, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      this.drawSprite(this.image(url), this.player.x - size / 2, this.player.y - size, size, size, this.player.facingLeft);
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.font = "700 14px Chakra Petch, sans-serif";
+      ctx.fillStyle = "#ffe27a";
+      ctx.fillText("▼ YOU", this.player.x, this.player.y - size + 2);
+      ctx.restore();
+    }
+
     this.projectiles.forEach((projectile, index) => {
       const bullet = this.image(`${PACK}/Bullet/${["Artboard 1.png","Artboard 1 copy.png","Artboard 1 copy 2.png"][index%3]}`);
       if (bullet) this.drawSprite(bullet, projectile.x-15, projectile.y-15, 30, 30);
       else { ctx.fillStyle=projectile.color;ctx.beginPath();ctx.arc(projectile.x,projectile.y,7,0,Math.PI*2);ctx.fill(); }
     });
-    this.effects.forEach(effect => { ctx.save();ctx.globalAlpha=1-effect.age/effect.life;ctx.strokeStyle=effect.color;ctx.lineWidth=7;ctx.beginPath();ctx.arc(effect.x,effect.y,effect.radius,0,Math.PI*2);ctx.stroke();ctx.restore(); });
+    this.effects.forEach(effect => {
+      ctx.save();
+      ctx.globalAlpha = 1 - effect.age / effect.life;
+      ctx.strokeStyle = effect.color;
+      if (effect.kind === "tracer") {
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(effect.x, effect.y);
+        ctx.lineTo(effect.x2, effect.y2);
+        ctx.stroke();
+      } else {
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    });
 
     ctx.fillStyle = "rgba(5,12,23,.72)";ctx.fillRect(14,14,225,42);
     ctx.fillStyle = "#dfeeff";ctx.font = "700 18px Chakra Petch, sans-serif";ctx.fillText(`SYSTEM ${Math.round(this.integrity)}%`,28,41);
+
+    if (this.combo > 1) {
+      ctx.save();
+      ctx.fillStyle = "rgba(5,12,23,.72)";
+      ctx.fillRect(1280 - 172, 14, 158, 42);
+      ctx.fillStyle = "#ffbd4a";
+      ctx.font = "700 18px Chakra Petch, sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(`COMBO x${this.combo}`, 1280 - 28, 41);
+      ctx.restore();
+    }
+
+    if (this.aiming && this.running) {
+      const { x, y } = this.pointer;
+      const size = this.muzzle > 0 ? 27 : 20;
+      ctx.save();
+      ctx.strokeStyle = this.muzzle > 0 ? "#ffe27a" : "rgba(255,255,255,.88)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x - size, y); ctx.lineTo(x - 8, y);
+      ctx.moveTo(x + 8, y); ctx.lineTo(x + size, y);
+      ctx.moveTo(x, y - size); ctx.lineTo(x, y - 8);
+      ctx.moveTo(x, y + 8); ctx.lineTo(x, y + size);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 }

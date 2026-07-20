@@ -280,13 +280,15 @@ async function renderBattle(finalMode) {
   const utilityButtons = finalMode
     ? Object.entries(UTILITIES).map(([id,utility])=>`<button class="ability-btn" data-tool="${id}" style="--ability:${utility.color}" type="button"><b>${utility.icon} ${utility.name}</b><small>${utility.symptom}</small><i></i></button>`).join("") + `<button class="ability-btn special-ability" data-special="guardian" style="--ability:#53d6a5" type="button"><img src="${PACK}/Cat Guardian/Idle/Enemy-Idle_00.png" alt=""><b>Cat Guardian</b><small>ฟื้นฟูฐาน</small><i></i></button><button class="ability-btn special-ability" data-special="boxing" style="--ability:#ffbd4a" type="button"><img src="${PACK}/CatBoxing/Idle/CatBoxing-Idle_00.png" alt=""><b>Cat Boxing</b><small>หมัดทำลายเกราะ</small><i></i></button>`
     : `<button class="ability-btn" id="missionAbility" data-tool="${mission.id}" style="--ability:${UTILITIES[mission.id].color}" type="button"><b>${UTILITIES[mission.id].icon} ${UTILITIES[mission.id].name}</b><small>พลังยังไม่เต็ม</small><i></i></button>`;
-  $("missionMount").innerHTML = `<div class="battle-shell"><div class="battle-hud"><div><span>WAVE</span><strong id="waveText">PREPARE</strong><span>กำจัด</span><strong id="defeatText">0</strong></div><div><span>วิธีเล่น</span><strong>${finalMode ? "เลือกยูทิลิตี้จากอาการบอส" : "คลิกศัตรูช่วยทีมโจมตี"}</strong></div></div><div id="bossAlert" class="boss-alert" ${finalMode ? "" : "hidden"}>รอวิเคราะห์อาการของบอส...</div><div class="battle-canvas-wrap"><canvas id="battleCanvas"></canvas><div class="battle-tip">คลิกศัตรูเพื่อ Manual Strike · ทีมแมวจะยิงอัตโนมัติ</div><div id="battleLoading" class="battle-loading"><i></i><p>กำลังเตรียมตัวละครจาก Game Pack...</p></div></div><div id="abilityDock" class="ability-dock">${utilityButtons}</div></div>`;
+  const controlledCat = CAT_TEAM[mission.team[0] - 1];
+  $("missionMount").innerHTML = `<div class="battle-shell"><div class="battle-hud"><div><span>WAVE</span><strong id="waveText">PREPARE</strong><span>กำจัด</span><strong id="defeatText">0</strong></div><div class="hero-status"><img src="${catIdlePath(controlledCat.id)}" alt=""><span>ผู้เล่นควบคุม</span><strong>${escapeHTML(controlledCat.name)}</strong></div><div><span>เป้าหมาย</span><strong>${finalMode ? "รักษาอาการบอสให้ถูก" : "เก็บ Data Core เพื่อชาร์จพลัง"}</strong></div></div><div id="bossAlert" class="boss-alert" ${finalMode ? "" : "hidden"}>รอวิเคราะห์อาการของบอส...</div><div class="battle-canvas-wrap"><canvas id="battleCanvas"></canvas><div id="learningToast" class="learning-toast"><b>KNOWLEDGE CORE</b><span>เดินเก็บ Data Core เพื่อรับความรู้และชาร์จ Ability</span></div><div class="battle-tip">WASD/ปุ่มลูกศร = เดิน · เมาส์ = เล็ง · กดค้าง/Spacebar = ยิง · เดินเก็บ DATA CORE</div><div id="mobileControls" class="mobile-controls"><div class="move-pad"><button data-move="up" aria-label="เดินขึ้น">▲</button><button data-move="left" aria-label="เดินซ้าย">◀</button><button data-move="down" aria-label="เดินลง">▼</button><button data-move="right" aria-label="เดินขวา">▶</button></div><button class="mobile-fire" data-mobile-fire aria-label="ยิง">FIRE</button></div><div id="battleLoading" class="battle-loading"><i></i><p>กำลังเตรียมตัวละครจาก Game Pack...</p></div></div><div id="abilityDock" class="ability-dock">${utilityButtons}</div></div>`;
   const battle = new DefenseBattle({ canvas: $("battleCanvas"), mission, finalMode, sound, callbacks: {
     onLoad: ratio => { const p=$("battleLoading").querySelector("p");if(p)p.textContent=`โหลดกำลังรบ ${Math.round(ratio*100)}%`; },
     onIntegrity: updateIntegrity,
     onCharge: charge => updateAbilityCharge(charge),
     onWave: (current,total,wave) => { $("waveText").textContent=`${current}/${total} ${wave.kind === "boss" ? "· BOSS" : ""}`; },
     onAlert: (tool,timedOut,used) => updateBossAlert(tool,timedOut,used),
+    onFact: (fact,reward) => showLearningFact(fact,reward),
     onWrongTool: (used,needed) => flashWrongTool(used,needed),
     onSpecial: type => flashAbility(`[data-special="${type}"]`,true),
     onWin: result => { $("defeatText").textContent=result.defeated; updateIntegrity(result.integrity); setTimeout(()=>renderDebrief(result),700); },
@@ -301,7 +303,40 @@ async function renderBattle(finalMode) {
     const ok=battle.activateUtility(button.dataset.tool);flashAbility(`[data-tool="${button.dataset.tool}"]`,ok);
   }));
   $("abilityDock").querySelectorAll("[data-special]").forEach(button=>button.addEventListener("click",()=>battle.activateSpecial(button.dataset.special)));
+  bindBattleControls(battle);
   battle.start();
+  showLearningFact(finalMode ? "สังเกตอาการที่บอสแสดง แล้วเลือกยูทิลิตี้ให้ตรงก่อนหมดเวลา" : mission.facts[0], "MISSION GUIDE");
+}
+
+function bindBattleControls(battle) {
+  $("mobileControls")?.querySelectorAll("[data-move]").forEach(button => {
+    const direction = button.dataset.move;
+    const start = event => { event.preventDefault(); event.stopPropagation(); battle.setVirtualMove(direction, true); };
+    const stop = event => { event.preventDefault(); event.stopPropagation(); battle.setVirtualMove(direction, false); };
+    button.addEventListener("pointerdown", start);
+    button.addEventListener("pointerup", stop);
+    button.addEventListener("pointercancel", stop);
+    button.addEventListener("pointerleave", stop);
+  });
+  const fire = $("mobileControls")?.querySelector("[data-mobile-fire]");
+  if (fire) {
+    const start = event => { event.preventDefault(); event.stopPropagation(); battle.setVirtualFire(true); };
+    const stop = event => { event.preventDefault(); event.stopPropagation(); battle.setVirtualFire(false); };
+    fire.addEventListener("pointerdown", start);
+    fire.addEventListener("pointerup", stop);
+    fire.addEventListener("pointercancel", stop);
+    fire.addEventListener("pointerleave", stop);
+  }
+}
+
+let learningToastTimer = null;
+function showLearningFact(fact, reward) {
+  const toast = $("learningToast");
+  if (!toast) return;
+  toast.innerHTML = `<b>${escapeHTML(reward)} · KNOWLEDGE UNLOCKED</b><span>${escapeHTML(fact)}</span>`;
+  toast.classList.add("show");
+  clearTimeout(learningToastTimer);
+  learningToastTimer = setTimeout(() => toast.classList.remove("show"), 4300);
 }
 
 function updateAbilityCharge(charge) {
