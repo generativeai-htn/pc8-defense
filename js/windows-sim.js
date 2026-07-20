@@ -17,6 +17,7 @@ class WindowsPracticeSimulator {
     this.progress = null;
     this.completed = false;
     this.fileSelected = false;
+    this.npcOpen = true;
     this.cleanupSelected = new Set();
     this.timer = null;
     this.destroyed = false;
@@ -60,23 +61,93 @@ class WindowsPracticeSimulator {
     return String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
   }
 
+  icon(name, label = "") {
+    return `<span class="w10-icon ${name}" aria-hidden="true"></span>${label ? `<span class="sr-only">${this.esc(label)}</span>` : ""}`;
+  }
+
+  getGuideMessages() {
+    return {
+      checkdisk: [
+        "เราเริ่มที่ This PC เพราะ Windows รวมไดรฟ์ทั้งหมดไว้ที่นี่ ดับเบิลคลิกไอคอน This PC ได้เลย",
+        "เลือก Local Disk (C:) ซึ่งเป็นไดรฟ์ที่ติดตั้ง Windows การตรวจไดรฟ์นี้ช่วยค้นหา File system errors",
+        "คลิกขวาที่ไดรฟ์ C: เพื่อเปิดคำสั่งจัดการ หากใช้จอสัมผัสให้แตะปุ่มจุดสามจุด",
+        "เลือก Properties เพื่อดูเครื่องมือและสถานะของไดรฟ์ โดยยังไม่มีการแก้ไขไฟล์ใด ๆ",
+        "แท็บ Tools รวมเครื่องมือตรวจข้อผิดพลาดและจัดเรียงข้อมูล กด Tools ด้านบน",
+        "ในกรอบ Error checking ให้กด Check เพื่อให้ Windows เตรียมตรวจ File system",
+        "กด Scan drive แล้วรอจนจบ ระหว่างสแกนไม่ควรปิดเครื่องกะทันหัน"
+      ],
+      defrag: [
+        "ใช้ช่อง Search บน Taskbar เพื่อค้นหาเครื่องมือระบบโดยไม่ต้องจำตำแหน่งใน Control Panel",
+        "พิมพ์ defragment ให้ครบ แล้ว Windows จะแสดงผลลัพธ์ที่ตรงที่สุด",
+        "เปิด Defragment and Optimize Drives ซึ่งเป็นชื่อเครื่องมือจริงใน Windows 10",
+        "เลือก Local Disk (C:) ก่อน เพื่อไม่ให้สั่งงานผิดไดรฟ์",
+        "กด Analyze เพื่อดูเปอร์เซ็นต์ Fragmented ก่อนตัดสินใจ Optimize",
+        "กด Optimize เพื่อจัดชิ้นส่วนข้อมูลให้ต่อเนื่อง เป้าหมายคือสถานะ OK (0% fragmented)"
+      ],
+      cleanup: [
+        "เริ่มจาก Search บน Taskbar เพื่อเปิด Disk Cleanup ของ Windows 10",
+        "พิมพ์ Disk Cleanup ให้ครบเพื่อค้นหาแอประบบ",
+        "เลือกผลลัพธ์ Disk Cleanup ที่มีไอคอนไดรฟ์และแปรงทำความสะอาด",
+        "เลือก Local Disk (C:) ซึ่งมักสะสม Temporary files จากการใช้งาน Windows",
+        "Windows จะ Scan และคำนวณพื้นที่ก่อน ยังไม่มีไฟล์ใดถูกลบในขั้นตอนนี้",
+        "เลือก Temporary Internet Files, Downloaded Program Files และ Memory dump หลีกเลี่ยง Downloads ที่อาจมีงานของเรา",
+        "ตรวจยอดพื้นที่อีกครั้ง กด OK แล้วจึงยืนยัน Delete Files"
+      ],
+      antivirus: [
+        "เปิด Windows Security จากไอคอนรูปโล่ นี่คือศูนย์รวมการป้องกันของ Windows 10",
+        "เข้า Virus & threat protection เพื่อดูภัยคุกคามและสถานะการสแกน",
+        "เปิด Protection updates เพราะโปรแกรมต้องรู้จักลายเซ็นไวรัสรุ่นล่าสุด",
+        "กด Check for updates และรอให้ฐานข้อมูล Security intelligence เป็นปัจจุบัน",
+        "เปิด Real-time protection เพื่อให้ระบบตรวจไฟล์ขณะใช้งานตลอดเวลา",
+        "กด Quick scan เพื่อตรวจตำแหน่งที่มัลแวร์มักซ่อนตัว",
+        "ตั้ง Scheduled scan ให้ตรวจเป็นประจำ และควรใช้ Antivirus หลักเพียงหนึ่งตัว"
+      ],
+      onedrive: [
+        "เปิด Microsoft Edge เพื่อเข้าใช้งาน OneDrive ผ่านเว็บเหมือนใน Windows 10",
+        "พิมพ์ onedrive.live.com ใน Address bar ตรวจชื่อเว็บก่อนกด Enter",
+        "เลือก Sign in หรือ Create free account ตามสถานะบัญชี Microsoft ของผู้ใช้",
+        "ใน Lab นี้ใช้บัญชีฝึกเท่านั้น ห้ามกรอกรหัสผ่านจริงในเว็บไซต์จำลอง",
+        "กด Upload เพื่อส่งสำเนาไฟล์จากเครื่องขึ้น Cloud",
+        "เลือก Unit8_Report.docx จาก Documents แล้วกด Open",
+        "เลือกไฟล์ที่อัปโหลดเพื่อเปิดคำสั่งจัดการ",
+        "กด Share เพื่อกำหนดวิธีแบ่งปันไฟล์ให้ผู้อื่น",
+        "คัดลอกลิงก์และส่งเฉพาะคนที่ควรเข้าถึงข้อมูล",
+        "เปิดโฟลเดอร์ OneDrive ที่ Sync เพื่อดูสถานะไฟล์ใน File Explorer",
+        "ใช้ Free up space เพื่อเก็บไฟล์ไว้บน Cloud และคืนพื้นที่ในไดรฟ์ โดยยังดาวน์โหลดกลับมาได้"
+      ]
+    };
+  }
+
+  guideMessage() {
+    if (this.completed) return "เยี่ยมมาก! ทำขั้นตอนครบแล้ว ต่อไปเราจะนำความรู้นี้ไปใช้ในสนามป้องกันระบบ";
+    if (this.progress) return `${this.progress.title} กำลังทำงาน รอให้แถบความคืบหน้าเสร็จก่อนนะ`;
+    return this.getGuideMessages()[this.mission.id]?.[this.step] || "ทำตามขั้นตอนที่มีกรอบสีฟ้า แล้วฉันจะอธิบายขั้นต่อไปให้";
+  }
+
+  npcDialogHTML() {
+    const cat = CAT_TEAM[this.mission.team[0] - 1];
+    if (!this.npcOpen) return `<button class="npc-guide-chip" data-win-action="toggle-npc" type="button"><img src="${catIdlePath(cat.id)}" alt=""><span>เรียก ${this.esc(cat.name)}</span></button>`;
+    return `<section class="npc-dialog" aria-live="polite"><img src="${catIdlePath(cat.id)}" alt="${this.esc(cat.name)}"><div><header><b>${this.esc(cat.name)}</b><span>NPC SYSTEM GUIDE · STEP ${Math.min(this.step + 1, this.steps.length)}/${this.steps.length}</span><button data-win-action="toggle-npc" type="button" aria-label="ย่อคำแนะนำ">—</button></header><p>${this.esc(this.guideMessage())}</p></div></section>`;
+  }
+
   render() {
     if (this.destroyed) return;
     const cat = CAT_TEAM[this.mission.team[0] - 1];
     this.mount.innerHTML = `<div class="windows-practice">
       <section class="win-simulator" aria-label="Windows Practice Lab">
-        <div class="win-lab-bar"><div><span class="win-logo">⊞</span><b>WINDOWS PRACTICE LAB</b></div><span>SAFE TRAINING MODE · ไม่กระทบเครื่องจริง</span></div>
+        <div class="win-lab-bar"><div><span class="win-logo">⊞</span><b>WINDOWS 10 PRACTICE LAB</b></div><span>SAFE TRAINING MODE · ไม่กระทบเครื่องจริง</span></div>
         <div class="win-desktop" id="winDesktop">
           ${this.desktopIcons()}
           ${this.windowContent()}
           ${this.progress ? this.progressHTML() : ""}
           ${this.completed ? this.completionHTML() : ""}
           <div id="winToast" class="win-toast ${this.status ? "show" : ""}">${this.esc(this.status)}</div>
+          ${this.npcDialogHTML()}
           ${this.taskbarHTML()}
         </div>
       </section>
       <aside class="win-guide">
-        <div class="win-coach"><img src="${catIdlePath(cat.id)}" alt=""><div><span>ผู้ช่วยประจำ Lab</span><b>${this.esc(cat.name)}</b><p>คลิกตามตำแหน่งจริงใน Windows จำลอง หากติดขัดให้ดูขั้นตอนที่มีแสงสีฟ้า</p></div></div>
+        <div class="win-coach"><img src="${catIdlePath(cat.id)}" alt=""><div><span>ผู้ช่วยประจำ Lab</span><b>${this.esc(cat.name)}</b><p>NPC จะอธิบายเหตุผลของแต่ละขั้นตอนบนหน้าจอ กดปุ่มย่อหรือเรียกกลับมาได้ทุกเวลา</p></div></div>
         <div class="win-guide-head"><span>PROCEDURE</span><b id="winStepCount">${Math.min(this.step + 1, this.steps.length)} / ${this.steps.length}</b></div>
         <ol class="win-step-list">${this.steps.map((label, index) => `<li class="${index < this.step ? "done" : index === this.step ? "current" : ""}"><i>${index < this.step ? "✓" : index + 1}</i><span>${this.esc(label)}</span></li>`).join("")}</ol>
         <div class="win-safety"><b>การจำลองเพื่อการเรียนรู้</b><span>หน้าต่างนี้เลียนแบบขั้นตอนสำคัญ แต่ไม่อ่าน ลบ หรือแก้ไขไฟล์ในคอมพิวเตอร์จริง</span></div>
@@ -105,20 +176,20 @@ class WindowsPracticeSimulator {
 
   taskbarHTML() {
     return `<div class="win-taskbar">
-      <button class="win-start" type="button" aria-label="Start">⊞</button>
+      <button class="win-start" type="button" aria-label="Start">${this.icon("windows")}</button>
       <button class="win-search" data-win-action="open-search" type="button">⌕ <span>Search</span></button>
-      <button class="win-task-icon" data-win-action="open-explorer" type="button" title="File Explorer">📁</button>
-      <button class="win-task-icon" data-win-action="open-edge" type="button" title="Microsoft Edge">🌐</button>
+      <button class="win-task-icon" data-win-action="open-explorer" type="button" title="File Explorer">${this.icon("folder")}</button>
+      <button class="win-task-icon" data-win-action="open-edge" type="button" title="Microsoft Edge">${this.icon("edge")}</button>
       <span class="win-clock">ENG<br>${new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}</span>
     </div>`;
   }
 
   desktopIcons() {
     return `<div class="win-desktop-icons">
-      <button data-win-action="open-explorer" type="button"><span>🖥️</span><b>This PC</b></button>
-      <button data-win-action="open-edge" type="button"><span>🌐</span><b>Microsoft Edge</b></button>
-      <button data-win-action="open-security" type="button"><span>🛡️</span><b>Windows Security</b></button>
-      <button type="button"><span>🗑️</span><b>Recycle Bin</b></button>
+      <button data-win-action="open-explorer" type="button">${this.icon("pc")}<b>This PC</b></button>
+      <button data-win-action="open-edge" type="button">${this.icon("edge")}<b>Microsoft Edge</b></button>
+      <button data-win-action="open-security" type="button">${this.icon("shield")}<b>Windows Security</b></button>
+      <button type="button">${this.icon("recycle")}<b>Recycle Bin</b></button>
     </div>`;
   }
 
@@ -137,8 +208,8 @@ class WindowsPracticeSimulator {
   }
 
   windowFrame(title, body, options = {}) {
-    return `<section class="win-window ${options.wide ? "wide" : ""}" role="dialog" aria-label="${this.esc(title)}">
-      <header><span>${options.icon || "▣"}</span><b>${this.esc(title)}</b><div><button type="button">—</button><button type="button">□</button><button type="button">×</button></div></header>
+    return `<section class="win-window ${options.wide ? "wide" : ""} ${options.compact ? "compact-window" : ""}" role="dialog" aria-label="${this.esc(title)}">
+      <header>${this.icon(options.icon || "app")}<b>${this.esc(title)}</b><div><button type="button">—</button><button type="button">□</button><button type="button">×</button></div></header>
       ${body}
     </section>`;
   }
@@ -150,7 +221,7 @@ class WindowsPracticeSimulator {
     const app = id === "defrag" ? "Defragment and Optimize Drives" : "Disk Cleanup";
     const action = id === "defrag" ? "open-defrag" : "open-cleanup";
     return `<section class="win-search-panel"><label>⌕<input data-win-input="search" data-autofocus="true" value="${this.esc(this.searchValue)}" placeholder="Type here to search"></label>
-      <div class="win-search-body">${match ? `<p>Best match</p><button data-win-action="${action}" type="button"><span>${id === "defrag" ? "🧩" : "🧹"}</span><div><b>${app}</b><small>App · System</small></div></button>` : `<div class="win-search-empty"><span>⌨️</span><b>เริ่มพิมพ์ชื่อเครื่องมือ</b><small>${query}</small></div>`}</div>
+      <div class="win-search-body">${match ? `<p>Best match</p><button data-win-action="${action}" type="button">${this.icon(id === "defrag" ? "defrag" : "cleanup")}<div><b>${app}</b><small>Desktop app · System</small></div></button>` : `<div class="win-search-empty">${this.icon("search-big")}<b>เริ่มพิมพ์ชื่อเครื่องมือ</b><small>${query}</small></div>`}</div>
     </section>`;
   }
 
@@ -160,21 +231,22 @@ class WindowsPracticeSimulator {
     const menu = this.contextOpen ? `<div class="win-context-menu"><button type="button">Open</button><button type="button">Pin to Quick access</button><hr><button data-win-action="properties" type="button">Properties</button></div>` : "";
     const body = `<div class="win-explorer-toolbar"><button>←</button><button>→</button><span>This PC</span><label>⌕ Search This PC</label></div>
       <div class="win-explorer-layout"><nav><b>Home</b><span>Desktop</span><span>Documents</span><span>Downloads</span><b>This PC</b><span>Network</span></nav><main><h3>Devices and drives</h3>
-        <button class="win-drive ${driveClass}" data-win-action="select-drive" data-win-context="drive-menu" type="button"><span>💽</span><div><b>Windows (C:)</b><i><u style="width:62%"></u></i><small>88.4 GB free of 237 GB</small></div><em data-win-action="drive-menu">⋯</em></button>
-        <button class="win-drive" type="button"><span>💿</span><div><b>Data (D:)</b><i><u style="width:30%"></u></i><small>320 GB free of 465 GB</small></div></button>${menu}
+        <button class="win-drive ${driveClass}" data-win-action="select-drive" data-win-context="drive-menu" type="button">${this.icon("drive")}<div><b>Local Disk (C:)</b><i><u style="width:62%"></u></i><small>88.4 GB free of 237 GB</small></div><em data-win-action="drive-menu">⋯</em></button>
+        <button class="win-drive" type="button">${this.icon("drive-data")}<div><b>Data (D:)</b><i><u style="width:30%"></u></i><small>320 GB free of 465 GB</small></div></button>${menu}
       </main></div>`;
-    return this.windowFrame("File Explorer", body, { icon: "📁", wide: true });
+    return this.windowFrame("File Explorer", body, { icon: "folder", wide: true });
   }
 
   propertiesHTML() {
-    const body = `<div class="win-tabs"><button class="${this.tab === "general" ? "active" : ""}">General</button><button data-win-action="tools-tab" class="${this.tab === "tools" ? "active" : this.step === 4 ? "pulse-target" : ""}" type="button">Tools</button><button>Hardware</button><button>Sharing</button><button>Security</button></div>
-      ${this.tab === "general" ? `<div class="win-property-body"><div class="win-drive-hero">💽 <b>Windows (C:)</b></div><div class="win-donut"></div><p>Used space: 148 GB<br>Free space: 88.4 GB<br>Capacity: 237 GB</p></div>` : `<div class="win-tools"><section><div><b>Error checking</b><p>This option will check the drive for file system errors.</p></div><button data-win-action="check-drive" class="pulse-target" type="button">Check</button></section><section><div><b>Optimize and defragment drive</b><p>Optimizing your drive can help your computer run more efficiently.</p></div><button type="button">Optimize</button></section></div>`}
-      <footer class="win-dialog-buttons"><button type="button">OK</button><button type="button">Cancel</button><button disabled>Apply</button></footer>`;
-    return this.windowFrame("Windows (C:) Properties", body, { icon: "💽" });
+    const tabs = `<div class="win10-tabs"><button>Security</button><button>Previous Versions</button><button>Quota</button><button class="${this.tab === "general" ? "active" : ""}">General</button><button data-win-action="tools-tab" class="${this.tab === "tools" ? "active" : this.step === 4 ? "pulse-target" : ""}" type="button">Tools</button><button>Hardware</button><button>Sharing</button></div>`;
+    const general = `<div class="win-property-body"><div class="win-drive-hero">${this.icon("drive")}<b>Local Disk (C:)</b></div><div class="win-donut"></div><p>Used space: 148 GB<br>Free space: 88.4 GB<br>Capacity: 237 GB</p></div>`;
+    const tools = `<div class="win10-tools"><fieldset><legend>Error checking</legend><div>${this.icon("drive-small")}<p>This option will check the drive for file<br>system errors.</p><button data-win-action="check-drive" class="pulse-target" type="button"><span class="uac-shield">◆</span>Check</button></div></fieldset><fieldset><legend>Optimize and defragment drive</legend><div>${this.icon("defrag")}<p>Optimizing your drive can help it run<br>more efficiently.</p><button type="button">Optimize</button></div></fieldset></div>`;
+    const body = `${tabs}${this.tab === "general" ? general : tools}<footer class="win-dialog-buttons"><button type="button">OK</button><button type="button">Cancel</button><button disabled>Apply</button></footer>`;
+    return this.windowFrame("Local Disk (C:) Properties", body, { icon: "drive-title", compact: true });
   }
 
   checkDialogHTML() {
-    return this.windowFrame("Error Checking (Windows C:)", `<div class="win-dialog-message"><span>💽✓</span><h3>Scan this drive</h3><p>Windows found no errors on this drive. You can still scan the drive for errors.</p><button data-win-action="scan-drive" class="win-primary pulse-target" type="button">Scan drive</button><button type="button">Cancel</button></div>`, { icon: "🛠️" });
+    return this.windowFrame("Error Checking (Local Disk C:)", `<div class="win-dialog-message">${this.icon("drive-check")}<h3>Scan this drive</h3><p>Windows found no errors on this drive. You can still scan the drive for errors.</p><button data-win-action="scan-drive" class="win-primary pulse-target" type="button">Scan drive</button><button type="button">Cancel</button></div>`, { icon: "drive-title", compact: true });
   }
 
   optimizerHTML() {
@@ -184,11 +256,11 @@ class WindowsPracticeSimulator {
         <button data-win-action="optimizer-select" class="${this.selected ? "selected" : "pulse-target"}" type="button"><span>Windows (C:)</span><span>Hard disk drive</span><span>${this.status ? "Today" : "Never"}</span><span>${status}</span></button>
         <button type="button"><span>Data (D:)</span><span>Solid state drive</span><span>7 days ago</span><span>OK</span></button></div>
       <div class="win-opt-actions"><button data-win-action="analyze" class="${this.selected && !this.status ? "pulse-target" : ""}" type="button" ${!this.selected ? "disabled" : ""}>Analyze</button><button data-win-action="optimize" class="${this.status === "analyzed" ? "win-primary pulse-target" : ""}" type="button" ${this.status !== "analyzed" ? "disabled" : ""}>Optimize</button></div>`;
-    return this.windowFrame("Defragment and Optimize Drives", body, { icon: "🧩", wide: true });
+    return this.windowFrame("Defragment and Optimize Drives", body, { icon: "defrag", wide: true });
   }
 
   driveSelectHTML() {
-    return this.windowFrame("Disk Cleanup: Drive Selection", `<div class="win-dialog-message compact"><span>🧹</span><p>Select the drive you want to clean up:</p><label>Drives: <select id="cleanupDrive"><option>Windows (C:)</option><option>Data (D:)</option></select></label><div><button data-win-action="cleanup-drive-ok" class="win-primary pulse-target" type="button">OK</button><button type="button">Cancel</button></div></div>`, { icon: "🧹" });
+    return this.windowFrame("Disk Cleanup: Drive Selection", `<div class="win-dialog-message compact">${this.icon("cleanup")}<p>Select the drive you want to clean up:</p><label>Drives: <select id="cleanupDrive"><option>Local Disk (C:)</option><option>Data (D:)</option></select></label><div><button data-win-action="cleanup-drive-ok" class="win-primary pulse-target" type="button">OK</button><button type="button">Cancel</button></div></div>`, { icon: "cleanup", compact: true });
   }
 
   cleanupHTML() {
@@ -198,38 +270,38 @@ class WindowsPracticeSimulator {
       ["Downloads", "1.4 GB", false], ["Recycle Bin", "32 MB", false]
     ];
     const selectedSize = files.reduce((sum, file) => this.cleanupSelected.has(file[0]) ? sum + parseInt(file[1], 10) : sum, 0);
-    const body = `<div class="win-cleanup-head"><span>🧹</span><p>You can use Disk Cleanup to free up to <b>2.1 GB</b> of disk space on Windows (C:).</p></div><fieldset><legend>Files to delete:</legend>
+    const body = `<div class="win-cleanup-head">${this.icon("cleanup")}<p>You can use Disk Cleanup to free up to <b>2.1 GB</b> of disk space on Local Disk (C:).</p></div><fieldset><legend>Files to delete:</legend>
       ${files.map(([name,size,safe]) => `<label class="${safe ? "safe-file" : "user-file"}"><input data-win-action="cleanup-toggle" data-file="${this.esc(name)}" type="checkbox" ${this.cleanupSelected.has(name) ? "checked" : ""}><span><b>${this.esc(name)}</b><small>${safe ? "Temporary system data" : "User files — check carefully"}</small></span><em>${size}</em></label>`).join("")}
       </fieldset><p>Total amount of disk space you gain: <b>${selectedSize} MB</b></p><footer class="win-dialog-buttons"><button data-win-action="cleanup-ok" class="${this.cleanupSelected.size >= 3 ? "win-primary pulse-target" : ""}" type="button">OK</button><button type="button">Cancel</button></footer>${this.contextOpen ? `<div class="win-confirm"><span>🗑️</span><h3>Are you sure you want to permanently delete these files?</h3><button data-win-action="delete-files" class="win-primary pulse-target">Delete Files</button><button>Cancel</button></div>` : ""}`;
-    return this.windowFrame("Disk Cleanup for Windows (C:)", body, { icon: "🧹" });
+    return this.windowFrame("Disk Cleanup for Local Disk (C:)", body, { icon: "cleanup" });
   }
 
   securityHTML() {
-    const nav = `<nav><b>🛡️ Windows Security</b><button>Home</button><button data-win-action="virus-protection" class="${this.screen === "security-virus" ? "active" : ""}">Virus & threat protection</button><button>Account protection</button><button>Firewall & network protection</button><button>App & browser control</button></nav>`;
-    let main = `<main><h2>Security at a glance</h2><div class="security-cards"><button data-win-action="virus-protection" class="pulse-target"><span>🛡️</span><b>Virus & threat protection</b><small>Actions needed</small></button><button><span>👤</span><b>Account protection</b><small>No action needed</small></button><button><span>🌐</span><b>Firewall & network protection</b><small>No action needed</small></button></div></main>`;
+    const nav = `<nav><b>${this.icon("shield")} Windows Security</b><button>Home</button><button data-win-action="virus-protection" class="${this.screen === "security-virus" ? "active" : ""}">Virus & threat protection</button><button>Account protection</button><button>Firewall & network protection</button><button>App & browser control</button></nav>`;
+    let main = `<main><h2>Security at a glance</h2><div class="security-cards"><button data-win-action="virus-protection" class="pulse-target">${this.icon("shield")}<b>Virus & threat protection</b><small>Actions needed</small></button><button>${this.icon("account")}<b>Account protection</b><small>No action needed</small></button><button>${this.icon("network")}<b>Firewall & network protection</b><small>No action needed</small></button></div></main>`;
     if (this.screen === "security-virus") main = `<main><h2>Virus & threat protection</h2><section class="security-status"><span>✓</span><div><b>Current threats</b><p>No current threats.</p><button data-win-action="quick-scan" class="${this.step >= 5 ? "win-primary pulse-target" : ""}" type="button">Quick scan</button></div></section><section><b>Virus & threat protection updates</b><p>Security intelligence is updated to recognize the latest threats.</p><button data-win-action="protection-updates" class="${this.step === 2 ? "pulse-target" : ""}" type="button">Protection updates</button></section><section><b>Virus & threat protection settings</b><label class="win-toggle"><span>Real-time protection</span><input data-win-action="realtime-toggle" type="checkbox" ${this.status === "realtime" || this.step > 4 ? "checked" : ""}><i></i></label></section><section><b>Automatic scan</b><button data-win-action="schedule-scan" class="${this.step === 6 ? "pulse-target" : ""}" type="button">Schedule a scan</button></section></main>`;
     if (this.screen === "security-updates") main = `<main><h2>Protection updates</h2><p>Security intelligence version: 1.421.1204.0</p><p>Last update: Yesterday</p><button data-win-action="check-updates" class="win-primary pulse-target" type="button">Check for updates</button></main>`;
-    return this.windowFrame("Windows Security", `<div class="win-security">${nav}${main}</div>`, { icon: "🛡️", wide: true });
+    return this.windowFrame("Windows Security", `<div class="win-security">${nav}${main}</div>`, { icon: "shield", wide: true });
   }
 
   edgeHTML() {
-    let page = `<div class="edge-home"><span>🌐</span><h2>Search the web</h2><p>พิมพ์ onedrive.live.com ใน Address bar ด้านบน</p></div>`;
-    if (this.screen === "onedrive-landing") page = `<div class="onedrive-landing"><span>☁️</span><h1>Your files, anywhere</h1><p>Save your files and photos to OneDrive and access them from any device.</p><button data-win-action="onedrive-signin" class="win-primary pulse-target">Sign in</button><button data-win-action="onedrive-signin">Create free account</button></div>`;
+    let page = `<div class="edge-home">${this.icon("edge")}<h2>Search the web</h2><p>พิมพ์ onedrive.live.com ใน Address bar ด้านบน</p></div>`;
+    if (this.screen === "onedrive-landing") page = `<div class="onedrive-landing">${this.icon("cloud")}<h1>Your files, anywhere</h1><p>Save your files and photos to OneDrive and access them from any device.</p><button data-win-action="onedrive-signin" class="win-primary pulse-target">Sign in</button><button data-win-action="onedrive-signin">Create free account</button></div>`;
     if (this.screen === "onedrive-login") page = `<div class="ms-login"><span>⊞ Microsoft</span><h2>Sign in</h2><p>ใช้บัญชีฝึกจำลอง — ไม่ต้องกรอกบัญชีจริง</p><input value="student@school.local" readonly><button data-win-action="training-account" class="win-primary pulse-target">Continue with training account</button></div>`;
     if (this.screen === "onedrive-files") page = this.oneDriveFilesHTML();
     const body = `<div class="edge-tabs"><span>＋</span><b>${this.screen.startsWith("onedrive") ? "OneDrive" : "New tab"}</b></div><div class="edge-address"><button>←</button><button>→</button><button>↻</button><label>🔒<input data-win-input="address" value="${this.screen.startsWith("onedrive") ? "https://onedrive.live.com" : this.esc(this.addressValue)}" placeholder="Search or enter web address"></label><button data-win-action="address-submit">Go</button></div><div class="edge-page">${page}</div>`;
-    return this.windowFrame("Microsoft Edge", body, { icon: "🌐", wide: true });
+    return this.windowFrame("Microsoft Edge", body, { icon: "edge", wide: true });
   }
 
   oneDriveFilesHTML() {
     const menu = this.contextOpen ? `<div class="onedrive-share-dialog"><h3>Share “Unit8_Report.docx”</h3><p>Anyone with the link can view</p><input value="https://1drv.ms/u/s!training-unit8" readonly><button data-win-action="copy-link" class="win-primary pulse-target">Copy link</button></div>` : "";
-    return `<div class="onedrive-app"><header><b>☁️ OneDrive</b><span>Training account</span></header><nav><button>My files</button><button>Recent</button><button>Shared</button><button>Recycle bin</button></nav><main><div class="onedrive-command"><button data-win-action="upload-menu" class="${this.step === 4 ? "pulse-target" : ""}">⬆ Upload</button><button>＋ New</button><button data-win-action="open-sync-folder" class="${this.step === 9 ? "pulse-target" : ""}">🔄 Sync</button></div>${this.screen === "onedrive-files" && this.status === "picker" ? `<div class="file-picker"><h3>Open</h3><nav>Quick access · Documents</nav><button data-win-action="choose-upload-file" class="pulse-target"><span>📄</span><b>Unit8_Report.docx</b><small>Microsoft Word Document · 840 KB</small></button><footer><button data-win-action="choose-upload-file" class="win-primary">Open</button><button>Cancel</button></footer></div>` : `<div class="onedrive-list"><div><input type="checkbox" disabled><b>Name</b><span>Modified</span><span>File size</span></div>${this.status === "uploaded" || this.fileSelected || this.step >= 6 ? `<button data-win-action="select-uploaded-file" class="${this.fileSelected ? "selected" : "pulse-target"}"><input type="checkbox" ${this.fileSelected ? "checked" : ""}><b>📄 Unit8_Report.docx</b><span>Just now</span><span>840 KB</span></button>${this.fileSelected ? `<div class="file-actions"><button data-win-action="share-file" class="pulse-target">↗ Share</button><button>Download</button><button>Delete</button></div>` : ""}` : `<div class="onedrive-empty"><span>☁️</span><b>Files you upload will appear here</b></div>`}</div>`}</main>${menu}</div>`;
+    return `<div class="onedrive-app"><header><b>${this.icon("cloud")} OneDrive</b><span>Training account</span></header><nav><button>My files</button><button>Recent</button><button>Shared</button><button>Recycle bin</button></nav><main><div class="onedrive-command"><button data-win-action="upload-menu" class="${this.step === 4 ? "pulse-target" : ""}">⬆ Upload</button><button>＋ New</button><button data-win-action="open-sync-folder" class="${this.step === 9 ? "pulse-target" : ""}">↻ Sync</button></div>${this.screen === "onedrive-files" && this.status === "picker" ? `<div class="file-picker"><h3>Open</h3><nav>Quick access · Documents</nav><button data-win-action="choose-upload-file" class="pulse-target">${this.icon("document")}<b>Unit8_Report.docx</b><small>Microsoft Word Document · 840 KB</small></button><footer><button data-win-action="choose-upload-file" class="win-primary">Open</button><button>Cancel</button></footer></div>` : `<div class="onedrive-list"><div><input type="checkbox" disabled><b>Name</b><span>Modified</span><span>File size</span></div>${this.status === "uploaded" || this.fileSelected || this.step >= 6 ? `<button data-win-action="select-uploaded-file" class="${this.fileSelected ? "selected" : "pulse-target"}"><input type="checkbox" ${this.fileSelected ? "checked" : ""}><b>${this.icon("document")} Unit8_Report.docx</b><span>Just now</span><span>840 KB</span></button>${this.fileSelected ? `<div class="file-actions"><button data-win-action="share-file" class="pulse-target">↗ Share</button><button>Download</button><button>Delete</button></div>` : ""}` : `<div class="onedrive-empty">${this.icon("cloud")}<b>Files you upload will appear here</b></div>`}</div>`}</main>${menu}</div>`;
   }
 
   oneDriveExplorerHTML() {
     const menu = this.contextOpen ? `<div class="win-context-menu sync-menu"><button>Open</button><button>Share</button><button>Always keep on this device</button><button data-win-action="free-up-space" class="pulse-target">Free up space</button></div>` : "";
     const body = `<div class="win-explorer-toolbar"><button>←</button><button>→</button><span>OneDrive - Training account</span><label>⌕ Search OneDrive</label></div><div class="win-explorer-layout"><nav><b>Home</b><span>Desktop</span><span>Documents</span><b>☁️ OneDrive</b><span>This PC</span></nav><main><h3>OneDrive files</h3><button class="sync-file selected" data-win-action="sync-file-menu" data-win-context="sync-file-menu"><span>📄</span><b>Unit8_Report.docx</b><small>✓ Available on this device</small><em>⋯</em></button>${menu}</main></div>`;
-    return this.windowFrame("File Explorer", body, { icon: "📁", wide: true });
+    return this.windowFrame("File Explorer", body, { icon: "folder", wide: true });
   }
 
   progressHTML() {
@@ -250,6 +322,7 @@ class WindowsPracticeSimulator {
   }
 
   handleAction(action, element) {
+    if (action === "toggle-npc") { this.npcOpen = !this.npcOpen; return this.render(); }
     if (this.progress || this.completed && action !== "continue") return;
     const id = this.mission.id;
     if (action === "continue") { this.destroy(); this.onComplete?.(); return; }

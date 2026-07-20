@@ -6,6 +6,10 @@
 
 ครอบคลุม Check Disk, Optimize & Defragment, Disk Cleanup, Antivirus และ OneDrive
 
+- Windows 10 Practice Lab จำลองหน้าต่าง เมนู ไอคอน และลำดับการใช้งานของทั้ง 5 เครื่องมือ
+- NPC ทีมแมวประจำภารกิจอธิบายสิ่งที่ต้องทำและเหตุผลเชิงความรู้ทีละขั้นตอน
+- เป็นพื้นที่ฝึกแบบปลอดภัย ไม่อ่าน ลบ หรือแก้ไขไฟล์จริงบนเครื่องผู้เรียน
+
 **Repo:** github.com/generativeai-htn/pc8-defense (branch `main`)
 **Deploy:** Static site — เปิดผ่าน GitHub Pages ได้ทันที ไม่มี build step ไม่มี dependency
 
