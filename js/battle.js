@@ -1,5 +1,22 @@
 /* PC-8 Guardian Academy — canvas defense engine */
 
+const EXPLOSION_PACK = "assets/effects/explosion";
+const EXPLOSION_SETS = {
+  impact: { folder: "impact", prefix: "Explosion" },
+  energy: { folder: "energy", prefix: "Explosion_blue_circle" },
+  nuclear: { folder: "nuclear", prefix: "Nuclear_explosion" }
+};
+const BOSS_TITLES = {
+  1: "MUTANT VIRUS OMEGA", 2: "CLOUD DEVOURER", 3: "BAD SECTOR TITAN",
+  4: "FRAGMENT COLOSSUS", 5: "JUNK CORE GOLIATH", 6: "SECURITY BREACH PRIME",
+  7: "PC-8 CORE DESTROYER"
+};
+
+function explosionFramePath(type, frame) {
+  const set = EXPLOSION_SETS[type];
+  return `${EXPLOSION_PACK}/${set.folder}/${set.prefix}${frame}.png`;
+}
+
 class DefenseBattle {
   constructor(options) {
     this.canvas = options.canvas;
@@ -17,6 +34,7 @@ class DefenseBattle {
     this.projectiles = [];
     this.pickups = [];
     this.effects = [];
+    this.shake = 0;
     this.baseX = 375;
     this.integrity = 100;
     this.charge = this.finalMode ? 100 : 35;
@@ -78,6 +96,9 @@ class DefenseBattle {
     ["Artboard 1.png", "Artboard 1 copy.png", "Artboard 1 copy 2.png"].forEach(name => urls.add(`${PACK}/Bullet/${name}`));
     urls.add(`${PACK}/Cat Guardian/Idle/Enemy-Idle_00.png`);
     urls.add(`${PACK}/CatBoxing/Idle/CatBoxing-Idle_00.png`);
+    Object.keys(EXPLOSION_SETS).forEach(type => {
+      for (let frame = 1; frame <= 10; frame++) urls.add(explosionFramePath(type, frame));
+    });
     const list = [...urls];
     let loaded = 0;
     await Promise.all(list.map(url => new Promise(resolve => {
@@ -148,6 +169,7 @@ class DefenseBattle {
     this.time += dt;
     this.manualCooldown = Math.max(0, this.manualCooldown - dt);
     this.muzzle = Math.max(0, this.muzzle - dt);
+    this.shake = Math.max(0, this.shake - dt);
     if (this.comboTimer > 0) {
       this.comboTimer -= dt;
       if (this.comboTimer <= 0) this.combo = 0;
@@ -232,10 +254,10 @@ class DefenseBattle {
 
   spawnEnemy(kind, id) {
     const base = kind === "boss" ? BOSS_ENEMIES[id] : REGULAR_ENEMIES[id];
-    const scale = kind === "boss" ? (this.finalMode ? 1.75 : 1.45) : .86 + Math.random() * .12;
+    const scale = kind === "boss" ? (this.finalMode ? 2.08 : 1.86) : .86 + Math.random() * .12;
     const hpMultiplier = this.finalMode ? .78 : 1;
     const enemy = {
-      kind, id, data: base, x: 1260 + Math.random() * 100, y: kind === "boss" ? 460 : 260 + Math.random() * 380,
+      kind, id, data: base, x: 1260 + Math.random() * 100, y: kind === "boss" ? 560 : 260 + Math.random() * 380,
       hp: base.hp * hpMultiplier, maxHp: base.hp * hpMultiplier, scale, state: "walk", anim: 0, deadTime: 0,
       slowed: 0, flash: 0, wave: this.waveIndex, shielded: false, removed: false
     };
@@ -247,6 +269,10 @@ class DefenseBattle {
       this.callbacks.onAlert?.(this.requiredTool);
     }
     this.enemies.push(enemy);
+    if (kind === "boss") {
+      this.addExplosion("energy", enemy.x - 80, enemy.y - 190, 330, .62);
+      this.shake = .28;
+    }
     this.totalSpawned++;
   }
 
@@ -302,6 +328,7 @@ class DefenseBattle {
       const distance = Math.hypot(dx, dy);
       if (distance < 30) {
         const damage = projectile.target.shielded ? projectile.damage * .08 : projectile.damage;
+        this.addExplosion("energy", projectile.target.x, projectile.target.y - (projectile.target.kind === "boss" ? 180 : 55), projectile.target.kind === "boss" ? 105 : 62, .34);
         this.hitEnemy(projectile.target, damage);
         projectile.done = true;
       } else {
@@ -317,6 +344,10 @@ class DefenseBattle {
     this.effects = this.effects.filter(effect => effect.age < effect.life);
   }
 
+  addExplosion(type, x, y, size = 100, life = .48) {
+    this.effects.push({ kind: "sprite-explosion", sprite: type, x, y, size, age: 0, life, radius: 0, growth: 0 });
+  }
+
   hitEnemy(enemy, damage) {
     if (!enemy || enemy.state !== "walk") return;
     enemy.hp -= damage;
@@ -329,6 +360,8 @@ class DefenseBattle {
       this.totalDefeated++;
       this.charge = Math.min(100, this.charge + 3);
       if (enemy.kind === "boss" || this.totalDefeated % 2 === 1) this.dropKnowledgeCore(enemy);
+      this.addExplosion(enemy.kind === "boss" ? "nuclear" : "impact", enemy.x, enemy.y - (enemy.kind === "boss" ? 160 : 45), enemy.kind === "boss" ? 470 : 145, enemy.kind === "boss" ? 1.05 : .52);
+      if (enemy.kind === "boss") this.shake = .65;
       this.sound?.play("enemyDie");
     } else if (Math.random() < .3) this.sound?.play("hit");
   }
@@ -370,6 +403,7 @@ class DefenseBattle {
     this.sound?.play("damage");
     this.callbacks.onIntegrity?.(this.integrity);
     this.effects.push({ x: this.baseX, y: 420, radius: 30, growth: 150, age: 0, life: .5, color: "#ff5e69" });
+    this.addExplosion("impact", this.baseX, 410, 170, .58);
     if (this.integrity <= 0) this.lose();
   }
 
@@ -460,7 +494,7 @@ class DefenseBattle {
     this.manualCooldown = this.fireRate;
     this.muzzle = .08;
     this.sound?.play("shoot");
-    const candidates = this.enemies.filter(enemy => enemy.state === "walk" && Math.abs(enemy.x - x) < (enemy.kind === "boss" ? 120 : 70) && Math.abs(enemy.y - y) < (enemy.kind === "boss" ? 135 : 90));
+    const candidates = this.enemies.filter(enemy => enemy.state === "walk" && Math.abs(enemy.x - x) < (enemy.kind === "boss" ? 215 : 70) && Math.abs((enemy.y - (enemy.kind === "boss" ? 175 : 0)) - y) < (enemy.kind === "boss" ? 245 : 90));
     const target = candidates.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
     this.effects.push({ kind: "tracer", x: this.player.x + (this.player.facingLeft ? -34 : 34), y: this.player.y - 70, x2: x, y2: y, radius: 0, growth: 0, age: 0, life: .1, color: target ? "#ffe27a" : "#ffffff" });
     this.effects.push({ x, y, radius: 8, growth: 110, age: 0, life: .22, color: target ? "#ffe27a" : "#ffffff" });
@@ -472,6 +506,7 @@ class DefenseBattle {
     const multiplier = 1 + Math.min(this.combo, 10) * .06;
     const base = this.finalMode ? 12 : 15;
     const damage = target.shielded ? 1 : Math.round(base * multiplier);
+    this.addExplosion(target.kind === "boss" ? "energy" : "impact", x, y, target.kind === "boss" ? 92 : 58, .3);
     this.hitEnemy(target, damage);
     this.combo++;
     this.comboTimer = 1.6;
@@ -504,6 +539,8 @@ class DefenseBattle {
       this.requiredTool = null;
       this.callbacks.onAlert?.(null, false, tool);
       this.effects.push({ x: boss.x, y: boss.y, radius: 25, growth: 950, age: 0, life: .65, color: UTILITIES[tool].color });
+      this.addExplosion("energy", boss.x, boss.y - 185, 310, .68);
+      this.shake = .32;
       this.sound?.play("waveClear");
       return true;
     }
@@ -559,6 +596,8 @@ class DefenseBattle {
   draw() {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, 1280, 720);
+    ctx.save();
+    if (this.shake > 0) ctx.translate((Math.random() - .5) * 15, (Math.random() - .5) * 11);
     const area = this.image(`${PACK}/Area/Area${this.mission.area}.png`);
     if (area) ctx.drawImage(area, 0, 0, 1280, 720);
     else { ctx.fillStyle = "#193854"; ctx.fillRect(0,0,1280,720); }
@@ -603,8 +642,18 @@ class DefenseBattle {
       const height = width;
       this.drawSprite(this.image(url), enemy.x - width/2, enemy.y - height, width, height, true, enemy.flash > 0);
       if (enemy.state === "walk") {
-        const barW = enemy.kind === "boss" ? 180 : 95;
+        const barW = enemy.kind === "boss" ? Math.min(340, width * .72) : 95;
         const y = enemy.y - height + 8;
+        if (enemy.kind === "boss") {
+          ctx.save();
+          ctx.fillStyle = "rgba(6,12,24,.82)";
+          ctx.fillRect(enemy.x - barW / 2, y - 31, barW, 25);
+          ctx.fillStyle = "#ffca55";
+          ctx.font = "700 17px Chakra Petch, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(`⚠ BOSS · ${BOSS_TITLES[enemy.id] || "SYSTEM THREAT"}`, enemy.x, y - 13);
+          ctx.restore();
+        }
         ctx.fillStyle = "#07101f"; ctx.fillRect(enemy.x-barW/2,y,barW,8);
         ctx.fillStyle = enemy.kind === "boss" ? "#ff6b62" : "#53d6a5"; ctx.fillRect(enemy.x-barW/2,y,barW*Math.max(0,enemy.hp/enemy.maxHp),8);
         if (enemy.shielded) { ctx.strokeStyle="#9a7cff";ctx.lineWidth=5;ctx.beginPath();ctx.arc(enemy.x,enemy.y-height/2,width*.47,0,Math.PI*2);ctx.stroke(); }
@@ -639,6 +688,16 @@ class DefenseBattle {
     });
     this.effects.forEach(effect => {
       ctx.save();
+      if (effect.kind === "sprite-explosion") {
+        const progress = Math.min(1, effect.age / effect.life);
+        const frame = Math.min(10, Math.floor(progress * 10) + 1);
+        const image = this.image(explosionFramePath(effect.sprite, frame));
+        const size = effect.size * (.88 + progress * .18);
+        ctx.globalAlpha = progress > .82 ? (1 - progress) / .18 : 1;
+        if (image) this.drawSprite(image, effect.x - size / 2, effect.y - size / 2, size, size);
+        ctx.restore();
+        return;
+      }
       ctx.globalAlpha = 1 - effect.age / effect.life;
       ctx.strokeStyle = effect.color;
       if (effect.kind === "tracer") {
@@ -687,5 +746,6 @@ class DefenseBattle {
       ctx.stroke();
       ctx.restore();
     }
+    ctx.restore();
   }
 }

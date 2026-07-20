@@ -36,9 +36,9 @@ Start (เข้าสู่ศูนย์รักษา)
 
 | ห้อง | เครื่องมือ | Mini-game ฝึกปฏิบัติ | ศัตรู |
 |---|---|---|---|
-| 01 Sector Rescue | Check Disk | This PC → คลิกขวา C: → Properties → Tools → Check → Scan drive และตรวจเซกเตอร์ | Enemy Reg 1–2 |
-| 02 Block Order Protocol | Optimize & Defragment | Search → เปิด Optimize Drives → Analyze → Optimize จนเป็น 0% fragmented | Enemy Reg 3–4 |
-| 03 Storage Detox Run | Disk Cleanup | Search → เลือก C: → Scan → เลือกไฟล์ขยะ → ยืนยัน Delete Files | Enemy Reg 5–6 |
+| 01 Sector Rescue | Check Disk | This PC → คลิกขวา C: → Properties → Tools → Check → Scan drive และตรวจเซกเตอร์ | Enemy Reg 1–2 + Giant Boss 3 |
+| 02 Block Order Protocol | Optimize & Defragment | Search → เปิด Optimize Drives → Analyze → Optimize จนเป็น 0% fragmented | Enemy Reg 3–4 + Giant Boss 4 |
+| 03 Storage Detox Run | Disk Cleanup | Search → เลือก C: → Scan → เลือกไฟล์ขยะ → ยืนยัน Delete Files | Enemy Reg 5–6 + Giant Boss 5 |
 | 04 Immunity Firewall | Antivirus | Windows Security → Update → Real-time protection → Quick/Scheduled scan | Enemy Reg 7–8 + Boss 1 |
 | 05 Cloud Bridge Escort | OneDrive | Edge → Sign in → Upload → Share → Sync → Free up space | Enemy Reg 1,3,5 + Boss 2 |
 | Final: PC-8 Core Emergency | ทั้ง 5 ยูทิลิตี้ | จับคู่ "อาการบอส" กับเครื่องมือให้ถูกก่อนโล่จะทำลายฐาน | Boss 3–7 ต่อเนื่อง |
@@ -76,6 +76,7 @@ pc8-defense/
 │   └── main.js           # ควบคุม flow, render แต่ละ screen และบันทึก progress
 └── assets/
     ├── gamepack/         # สำเนาเต็มของ CraftPix Cat Defense kit (ตัวละคร 15, ศัตรู 15, UI, FX)
+    ├── effects/explosion # CraftPix Pixel Art Explosion — impact, energy, nuclear 30 เฟรม
     └── audio/            # CraftPix Futuristic Audio Pack 7 (คัดมาเฉพาะที่ใช้)
 ```
 
@@ -85,5 +86,6 @@ pc8-defense/
 ## 5. เครดิตทรัพยากร
 
 - ภาพตัวละคร ฉาก UI และเอฟเฟกต์: CraftPix — Free Cartoon Cat Defense Game Asset Kit
+- เอฟเฟกต์ระเบิด: CraftPix — Free Pixel Art Explosion Sprites
 - เสียงประกอบ: CraftPix — Free Futuristic Audio Pack 7
 - เนื้อหาบทเรียน: Computer_Health_Clinic.pdf (หน่วยที่ 8)

@@ -81,7 +81,7 @@ const MISSIONS = [
     area: 1,
     team: [1, 2, 3],
     enemies: [1, 2],
-    boss: null,
+    boss: 3,
     reward: "เหรียญตรา File Surgeon",
     intro: [
       "PC-8 ปิดเครื่องผิดวิธี โครงสร้างไฟล์บางส่วนกำลังเสียหาย!",
@@ -96,7 +96,8 @@ const MISSIONS = [
     ],
     waves: [
       { kind: "regular", id: 1, count: 6, interval: 900, delay: 700 },
-      { kind: "regular", id: 2, count: 5, interval: 850, delay: 1800 }
+      { kind: "regular", id: 2, count: 5, interval: 850, delay: 1800 },
+      { kind: "boss", id: 3, count: 1, interval: 0, delay: 2100 }
     ]
   },
   {
@@ -108,7 +109,7 @@ const MISSIONS = [
     area: 2,
     team: [4, 5, 6],
     enemies: [3, 4],
-    boss: null,
+    boss: 4,
     reward: "เหรียญตรา Data Organizer",
     intro: [
       "การลบและแก้ไขไฟล์บ่อยทำให้ชิ้นส่วนข้อมูลกระจัดกระจาย",
@@ -123,7 +124,8 @@ const MISSIONS = [
     ],
     waves: [
       { kind: "regular", id: 3, count: 7, interval: 820, delay: 700 },
-      { kind: "regular", id: 4, count: 6, interval: 760, delay: 1700 }
+      { kind: "regular", id: 4, count: 6, interval: 760, delay: 1700 },
+      { kind: "boss", id: 4, count: 1, interval: 0, delay: 2100 }
     ]
   },
   {
@@ -135,7 +137,7 @@ const MISSIONS = [
     area: 3,
     team: [7, 8, 9],
     enemies: [5, 6],
-    boss: null,
+    boss: 5,
     reward: "เหรียญตรา Storage Saver",
     intro: [
       "Windows สะสมไฟล์ชั่วคราวจนพื้นที่จัดเก็บใกล้เต็ม",
@@ -150,7 +152,8 @@ const MISSIONS = [
     ],
     waves: [
       { kind: "regular", id: 5, count: 8, interval: 720, delay: 650 },
-      { kind: "regular", id: 6, count: 7, interval: 690, delay: 1500 }
+      { kind: "regular", id: 6, count: 7, interval: 690, delay: 1500 },
+      { kind: "boss", id: 5, count: 1, interval: 0, delay: 2100 }
     ]
   },
   {

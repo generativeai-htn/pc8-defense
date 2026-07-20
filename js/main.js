@@ -322,7 +322,7 @@ function finishPractice() {
 
 async function renderBattle(finalMode) {
   const mission = game.currentMission;
-  sound.playMusic(finalMode || mission.boss ? "boss" : "battle");
+  sound.playMusic(finalMode ? "boss" : "battle");
   const utilityButtons = finalMode
     ? Object.entries(UTILITIES).map(([id,utility])=>`<button class="ability-btn" data-tool="${id}" style="--ability:${utility.color}" type="button"><b>${utility.icon} ${utility.name}</b><small>${utility.symptom}</small><i></i></button>`).join("") + `<button class="ability-btn special-ability" data-special="guardian" style="--ability:#53d6a5" type="button"><img src="${PACK}/Cat Guardian/Idle/Enemy-Idle_00.png" alt=""><b>Cat Guardian</b><small>ฟื้นฟูฐาน</small><i></i></button><button class="ability-btn special-ability" data-special="boxing" style="--ability:#ffbd4a" type="button"><img src="${PACK}/CatBoxing/Idle/CatBoxing-Idle_00.png" alt=""><b>Cat Boxing</b><small>หมัดทำลายเกราะ</small><i></i></button>`
     : `<button class="ability-btn" id="missionAbility" data-tool="${mission.id}" style="--ability:${UTILITIES[mission.id].color}" type="button"><b>${UTILITIES[mission.id].icon} ${UTILITIES[mission.id].name}</b><small>พลังยังไม่เต็ม</small><i></i></button>`;
@@ -332,7 +332,17 @@ async function renderBattle(finalMode) {
     onLoad: ratio => { const p=$("battleLoading").querySelector("p");if(p)p.textContent=`โหลดกำลังรบ ${Math.round(ratio*100)}%`; },
     onIntegrity: updateIntegrity,
     onCharge: charge => updateAbilityCharge(charge),
-    onWave: (current,total,wave) => { $("waveText").textContent=`${current}/${total} ${wave.kind === "boss" ? "· BOSS" : ""}`; },
+    onWave: (current,total,wave) => {
+      $("waveText").textContent=`${current}/${total} ${wave.kind === "boss" ? "· GIANT BOSS" : ""}`;
+      if (wave.kind === "boss") {
+        sound.playMusic("boss");
+        const alert = $("bossAlert");
+        alert.hidden = false;
+        alert.innerHTML = "⚠ <b>GIANT BOSS INCOMING</b> — เล็งยิงจุดศูนย์กลางและใช้ Ability ทำลายเกราะ!";
+      } else if (!finalMode) {
+        $("bossAlert").hidden = true;
+      }
+    },
     onAlert: (tool,timedOut,used) => updateBossAlert(tool,timedOut,used),
     onFact: (fact,reward) => showLearningFact(fact,reward),
     onWrongTool: (used,needed) => flashWrongTool(used,needed),
