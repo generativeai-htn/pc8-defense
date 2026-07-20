@@ -61,6 +61,8 @@ Always = OneDrive) ตรงตามสไลด์ต้นฉบับ
 - **System Process Battle**: แต่ละแผนที่มีเอฟเฟกต์แสดงกระบวนการ Check Disk, Defrag, Cleanup, Antivirus หรือ OneDrive ตลอดการต่อสู้
 - **Impact FX**: Muzzle flash, กระสุนปะทะ, ระเบิดศัตรู, ทำลายเกราะ และ Nuclear Explosion ตอนกำจัดบอส
 - **Full SFX**: เสียงคลิก เปลี่ยนฉาก เปลี่ยน Phase ยิง ปะทะ เก็บ Data Core ใช้ Ability บอสเข้า สำเร็จ ชนะ และเสียหาย
+- **Combat Skills**: Thunder Strike คูลดาวน์ 8 วินาที และ Mega Bomb คูลดาวน์ 12 วินาที เล็งตามตำแหน่งเมาส์/เป้าหมายอัตโนมัติ
+- **Boss Enrage**: บอสขนาดใหญ่หันหน้าเข้าหาทีมแมว มี HP เพิ่ม และเร่งความเร็วเมื่อพลังชีวิตต่ำกว่า 50%
 - Final boss: ต้องกดยูทิลิตี้ให้ตรงกับ "อาการ" ที่บอสแสดงก่อนหมดเวลา ไม่งั้นฐานเสียหาย
 - Crosshair วาดเองบน canvas (ซ่อน system cursor), มี muzzle flash + เสียงยิงทุกนัด
 

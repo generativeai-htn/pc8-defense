@@ -1,6 +1,7 @@
 /* PC-8 Guardian Academy — canvas defense engine */
 
 const EXPLOSION_PACK = "assets/effects/explosion";
+const COMBAT_EFFECT_PACK = "assets/effects/combat";
 const EXPLOSION_SETS = {
   impact: { folder: "impact", prefix: "Explosion" },
   energy: { folder: "energy", prefix: "Explosion_blue_circle" },
@@ -24,6 +25,14 @@ function explosionFramePath(type, frame) {
   const set = EXPLOSION_SETS[type];
   return `${EXPLOSION_PACK}/${set.folder}/${set.prefix}${frame}.png`;
 }
+
+const LIGHTNING_FRAMES = [
+  ...Array.from({ length: 5 }, (_, i) => `${COMBAT_EFFECT_PACK}/lightning/Lightning_beginning${i + 1}.png`),
+  ...Array.from({ length: 6 }, (_, i) => `${COMBAT_EFFECT_PACK}/lightning/Lightning_cycle${i + 1}.png`),
+  ...Array.from({ length: 3 }, (_, i) => `${COMBAT_EFFECT_PACK}/lightning/Lightning_end${i + 1}.png`)
+];
+const LIGHTNING_SPOTS = Array.from({ length: 4 }, (_, i) => `${COMBAT_EFFECT_PACK}/lightning/Lightning_spot${i + 1}.png`);
+const BOMB_FRAMES = Array.from({ length: 10 }, (_, i) => `${COMBAT_EFFECT_PACK}/bomb/Explosion_two_colors${i + 1}.png`);
 
 class DefenseBattle {
   constructor(options) {
@@ -59,6 +68,8 @@ class DefenseBattle {
     this.totalDefeated = 0;
     this.manualCooldown = 0;
     this.specialCooldown = { guardian: 0, boxing: 0 };
+    this.combatSkillCooldowns = { lightning: 0, bomb: 0 };
+    this.combatSkillMax = { lightning: 8, bomb: 12 };
     this.toolCooldowns = Object.fromEntries(Object.keys(UTILITIES).map(key => [key, 0]));
     this.requiredTool = null;
     this.shieldTimer = 0;
@@ -107,6 +118,7 @@ class DefenseBattle {
     Object.keys(EXPLOSION_SETS).forEach(type => {
       for (let frame = 1; frame <= 10; frame++) urls.add(explosionFramePath(type, frame));
     });
+    [...LIGHTNING_FRAMES, ...LIGHTNING_SPOTS, ...BOMB_FRAMES].forEach(url => urls.add(url));
     const list = [...urls];
     let loaded = 0;
     await Promise.all(list.map(url => new Promise(resolve => {
@@ -184,6 +196,8 @@ class DefenseBattle {
     }
     Object.keys(this.toolCooldowns).forEach(key => this.toolCooldowns[key] = Math.max(0, this.toolCooldowns[key] - dt));
     Object.keys(this.specialCooldown).forEach(key => this.specialCooldown[key] = Math.max(0, this.specialCooldown[key] - dt));
+    Object.keys(this.combatSkillCooldowns).forEach(key => this.combatSkillCooldowns[key] = Math.max(0, this.combatSkillCooldowns[key] - dt));
+    this.callbacks.onCombatSkills?.({ ...this.combatSkillCooldowns });
     if (!this.finalMode) this.charge = Math.min(100, this.charge + dt * .65);
     this.callbacks.onCharge?.(this.charge);
 
@@ -262,12 +276,12 @@ class DefenseBattle {
 
   spawnEnemy(kind, id) {
     const base = kind === "boss" ? BOSS_ENEMIES[id] : REGULAR_ENEMIES[id];
-    const scale = kind === "boss" ? (this.finalMode ? 2.08 : 1.86) : .86 + Math.random() * .12;
-    const hpMultiplier = this.finalMode ? .78 : 1;
+    const scale = kind === "boss" ? (this.finalMode ? 2.38 : 2.2) : .86 + Math.random() * .12;
+    const hpMultiplier = kind === "boss" ? (this.finalMode ? .98 : 1.48) : (this.finalMode ? .88 : 1.08);
     const enemy = {
-      kind, id, data: base, x: 1260 + Math.random() * 100, y: kind === "boss" ? 560 : 260 + Math.random() * 380,
+      kind, id, data: base, x: 1260 + Math.random() * 100, y: kind === "boss" ? 600 : 260 + Math.random() * 380,
       hp: base.hp * hpMultiplier, maxHp: base.hp * hpMultiplier, scale, state: "walk", anim: 0, deadTime: 0,
-      slowed: 0, flash: 0, wave: this.waveIndex, shielded: false, removed: false
+      slowed: 0, flash: 0, wave: this.waveIndex, shielded: false, removed: false, enraged: false
     };
     if (kind === "boss" && this.finalMode) {
       const tools = ["checkdisk", "defrag", "cleanup", "antivirus", "onedrive"];
@@ -316,10 +330,16 @@ class DefenseBattle {
       }
       enemy.anim += dt * (enemy.kind === "boss" ? 9 : 12);
       enemy.slowed = Math.max(0, enemy.slowed - dt);
-      const factor = enemy.slowed > 0 ? .38 : 1;
+      if (enemy.kind === "boss" && !enemy.enraged && enemy.hp / enemy.maxHp <= .5) {
+        enemy.enraged = true;
+        this.addExplosion("energy", enemy.x, enemy.y - 210, 360, .72);
+        this.shake = .35;
+        this.sound?.play("bossEnter");
+      }
+      const factor = enemy.slowed > 0 ? .38 : (enemy.enraged ? 1.42 : enemy.kind === "boss" ? 1.16 : 1.07);
       enemy.x -= enemy.data.speed * factor * dt;
-      if (enemy.x <= this.baseX + (enemy.kind === "boss" ? 80 : 35)) {
-        this.damageBase(enemy.data.damage);
+      if (enemy.x <= this.baseX + (enemy.kind === "boss" ? 165 : 35)) {
+        this.damageBase(enemy.data.damage * (enemy.kind === "boss" ? 1.28 : 1));
         enemy.state = "dead";
         enemy.deadTime = .25;
         enemy.anim = 0;
@@ -507,7 +527,7 @@ class DefenseBattle {
     const muzzleX = this.player.x + (this.player.facingLeft ? -38 : 38);
     const muzzleY = this.player.y - 72;
     this.addExplosion("energy", muzzleX, muzzleY, 48, .18);
-    const candidates = this.enemies.filter(enemy => enemy.state === "walk" && Math.abs(enemy.x - x) < (enemy.kind === "boss" ? 215 : 70) && Math.abs((enemy.y - (enemy.kind === "boss" ? 175 : 0)) - y) < (enemy.kind === "boss" ? 245 : 90));
+    const candidates = this.enemies.filter(enemy => enemy.state === "walk" && Math.abs(enemy.x - x) < (enemy.kind === "boss" ? 270 : 70) && Math.abs((enemy.y - (enemy.kind === "boss" ? 205 : 0)) - y) < (enemy.kind === "boss" ? 305 : 90));
     const target = candidates.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
     this.effects.push({ kind: "tracer", x: this.player.x + (this.player.facingLeft ? -34 : 34), y: this.player.y - 70, x2: x, y2: y, radius: 0, growth: 0, age: 0, life: .1, color: target ? "#ffe27a" : "#ffffff" });
     this.effects.push({ x, y, radius: 8, growth: 110, age: 0, life: .22, color: target ? "#ffe27a" : "#ffffff" });
@@ -585,6 +605,34 @@ class DefenseBattle {
       this.sound?.play("explosion");
     }
     this.callbacks.onSpecial?.(type, this.specialCooldown[type]);
+    return true;
+  }
+
+  activateCombatSkill(type) {
+    if (!this.running || this.paused || !(type in this.combatSkillCooldowns) || this.combatSkillCooldowns[type] > 0) return false;
+    const living = this.enemies.filter(enemy => enemy.state === "walk");
+    if (!living.length) return false;
+    const fallback = [...living].sort((a, b) => a.x - b.x)[0];
+    const aimX = this.pointer.x >= 0 ? this.pointer.x : fallback.x;
+    const aimY = this.pointer.y >= 0 ? this.pointer.y : fallback.y - (fallback.kind === "boss" ? 190 : 55);
+    if (type === "lightning") {
+      const targets = living.filter(enemy => Math.hypot(enemy.x - aimX, (enemy.y - 90) - aimY) < (enemy.kind === "boss" ? 285 : 190));
+      const struck = targets.length ? targets : [fallback];
+      struck.forEach(enemy => this.hitEnemy(enemy, enemy.kind === "boss" ? 115 : 145));
+      this.effects.push({ kind: "lightning-strike", x: aimX, y: Math.min(650, aimY + 100), age: 0, life: .82, radius: 0, growth: 0 });
+      this.addExplosion("energy", aimX, Math.min(620, aimY + 70), 240, .58);
+      this.shake = .38;
+    } else {
+      const targets = living.filter(enemy => Math.hypot(enemy.x - aimX, (enemy.y - 70) - aimY) < 285);
+      const blasted = targets.length ? targets : [fallback];
+      blasted.forEach(enemy => this.hitEnemy(enemy, enemy.kind === "boss" ? 155 : 210));
+      this.effects.push({ kind: "mega-bomb", x: aimX, y: Math.min(620, aimY + 60), age: 0, life: .95, size: 430, radius: 0, growth: 0 });
+      this.shake = .72;
+      this.sound?.play("explosion");
+    }
+    this.combatSkillCooldowns[type] = this.combatSkillMax[type];
+    this.callbacks.onCombatSkills?.({ ...this.combatSkillCooldowns });
+    this.sound?.play("ability");
     return true;
   }
 
@@ -699,9 +747,9 @@ class DefenseBattle {
       const url = enemyFramePath(enemy.kind, enemy.id, state, frame);
       const width = (enemy.kind === "boss" ? 235 : 135) * enemy.scale;
       const height = width;
-      this.drawSprite(this.image(url), enemy.x - width/2, enemy.y - height, width, height, true, enemy.flash > 0);
+      this.drawSprite(this.image(url), enemy.x - width/2, enemy.y - height, width, height, enemy.kind !== "boss", enemy.flash > 0);
       if (enemy.state === "walk") {
-        const barW = enemy.kind === "boss" ? Math.min(340, width * .72) : 95;
+        const barW = enemy.kind === "boss" ? Math.min(410, width * .76) : 95;
         const y = enemy.y - height + 8;
         if (enemy.kind === "boss") {
           ctx.save();
@@ -711,6 +759,7 @@ class DefenseBattle {
           ctx.font = "700 17px Chakra Petch, sans-serif";
           ctx.textAlign = "center";
           ctx.fillText(`⚠ BOSS · ${BOSS_TITLES[enemy.id] || "SYSTEM THREAT"}`, enemy.x, y - 13);
+          if (enemy.enraged) { ctx.fillStyle = "#ff5d66"; ctx.font = "700 14px Chakra Petch, sans-serif"; ctx.fillText("ENRAGED · SPEED UP", enemy.x, y + 29); }
           ctx.restore();
         }
         ctx.fillStyle = "#07101f"; ctx.fillRect(enemy.x-barW/2,y,barW,8);
@@ -768,6 +817,28 @@ class DefenseBattle {
         ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.strokeRect(370, 72, 540, 58);
         ctx.fillStyle = "#ffffff"; ctx.font = "700 22px Chakra Petch, sans-serif"; ctx.textAlign = "center";
         ctx.fillText(`${UTILITIES[effect.tool]?.icon || "⚡"} ${PROCESS_LABELS[effect.tool] || "SYSTEM PROCESS"}`, 640, 108);
+        ctx.restore();
+        return;
+      }
+      if (effect.kind === "lightning-strike") {
+        const progress = Math.min(1, effect.age / effect.life);
+        const frame = Math.min(LIGHTNING_FRAMES.length - 1, Math.floor(progress * LIGHTNING_FRAMES.length));
+        const spotFrame = Math.min(LIGHTNING_SPOTS.length - 1, Math.floor(progress * LIGHTNING_SPOTS.length));
+        const bolt = this.image(LIGHTNING_FRAMES[frame]);
+        const spot = this.image(LIGHTNING_SPOTS[spotFrame]);
+        ctx.globalAlpha = progress > .78 ? (1 - progress) / .22 : 1;
+        if (bolt) this.drawSprite(bolt, effect.x - 72, effect.y - 570, 144, 576);
+        if (spot) this.drawSprite(spot, effect.x - 105, effect.y - 105, 210, 210);
+        ctx.restore();
+        return;
+      }
+      if (effect.kind === "mega-bomb") {
+        const progress = Math.min(1, effect.age / effect.life);
+        const frame = Math.min(BOMB_FRAMES.length - 1, Math.floor(progress * BOMB_FRAMES.length));
+        const image = this.image(BOMB_FRAMES[frame]);
+        const size = effect.size * (.82 + progress * .26);
+        ctx.globalAlpha = progress > .84 ? (1 - progress) / .16 : 1;
+        if (image) this.drawSprite(image, effect.x - size / 2, effect.y - size / 2, size, size);
         ctx.restore();
         return;
       }

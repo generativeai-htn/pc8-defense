@@ -336,8 +336,9 @@ async function renderBattle(finalMode) {
   const utilityButtons = finalMode
     ? Object.entries(UTILITIES).map(([id,utility])=>`<button class="ability-btn" data-tool="${id}" style="--ability:${utility.color}" type="button"><b>${utility.icon} ${utility.name}</b><small>${utility.symptom}</small><i></i></button>`).join("") + `<button class="ability-btn special-ability" data-special="guardian" style="--ability:#53d6a5" type="button"><img src="${PACK}/Cat Guardian/Idle/Enemy-Idle_00.png" alt=""><b>Cat Guardian</b><small>ฟื้นฟูฐาน</small><i></i></button><button class="ability-btn special-ability" data-special="boxing" style="--ability:#ffbd4a" type="button"><img src="${PACK}/CatBoxing/Idle/CatBoxing-Idle_00.png" alt=""><b>Cat Boxing</b><small>หมัดทำลายเกราะ</small><i></i></button>`
     : `<button class="ability-btn" id="missionAbility" data-tool="${mission.id}" style="--ability:${UTILITIES[mission.id].color}" type="button"><b>${UTILITIES[mission.id].icon} ${UTILITIES[mission.id].name}</b><small>พลังยังไม่เต็ม</small><i></i></button>`;
+  const combatSkillButtons = `<button class="ability-btn combat-skill ready" data-combat-skill="lightning" style="--ability:#62dfff" type="button"><b>⚡ THUNDER STRIKE</b><small>ฟ้าผ่าศัตรูในพื้นที่ · พร้อมใช้</small><i style="width:100%"></i></button><button class="ability-btn combat-skill ready" data-combat-skill="bomb" style="--ability:#ff914d" type="button"><b>💣 MEGA BOMB</b><small>ระเบิดวงกว้าง · พร้อมใช้</small><i style="width:100%"></i></button>`;
   const controlledCat = CAT_TEAM[mission.team[0] - 1];
-  $("missionMount").innerHTML = `<div class="battle-shell"><div class="battle-hud"><div><span>WAVE</span><strong id="waveText">PREPARE</strong><span>กำจัด</span><strong id="defeatText">0</strong></div><div class="hero-status"><img src="${catIdlePath(controlledCat.id)}" alt=""><span>ผู้เล่นควบคุม</span><strong>${escapeHTML(controlledCat.name)}</strong></div><div><span>เป้าหมาย</span><strong>${finalMode ? "รักษาอาการบอสให้ถูก" : "เก็บ Data Core เพื่อชาร์จพลัง"}</strong></div></div><div id="bossAlert" class="boss-alert" ${finalMode ? "" : "hidden"}>รอวิเคราะห์อาการของบอส...</div><div class="battle-canvas-wrap"><canvas id="battleCanvas"></canvas><div id="learningToast" class="learning-toast"><b>KNOWLEDGE CORE</b><span>เดินเก็บ Data Core เพื่อรับความรู้และชาร์จ Ability</span></div><div class="battle-tip">WASD/ปุ่มลูกศร = เดิน · เมาส์ = เล็ง · กดค้าง/Spacebar = ยิง · เดินเก็บ DATA CORE</div><div id="mobileControls" class="mobile-controls"><div class="move-pad"><button data-move="up" aria-label="เดินขึ้น">▲</button><button data-move="left" aria-label="เดินซ้าย">◀</button><button data-move="down" aria-label="เดินลง">▼</button><button data-move="right" aria-label="เดินขวา">▶</button></div><button class="mobile-fire" data-mobile-fire aria-label="ยิง">FIRE</button></div><div id="battleLoading" class="battle-loading"><i></i><p>กำลังเตรียมตัวละครจาก Game Pack...</p></div></div><div id="abilityDock" class="ability-dock">${utilityButtons}</div></div>`;
+  $("missionMount").innerHTML = `<div class="battle-shell"><div class="battle-hud"><div><span>WAVE</span><strong id="waveText">PREPARE</strong><span>กำจัด</span><strong id="defeatText">0</strong></div><div class="hero-status"><img src="${catIdlePath(controlledCat.id)}" alt=""><span>ผู้เล่นควบคุม</span><strong>${escapeHTML(controlledCat.name)}</strong></div><div><span>เป้าหมาย</span><strong>${finalMode ? "รักษาอาการบอสให้ถูก" : "เก็บ Data Core เพื่อชาร์จพลัง"}</strong></div></div><div id="bossAlert" class="boss-alert" ${finalMode ? "" : "hidden"}>รอวิเคราะห์อาการของบอส...</div><div class="battle-canvas-wrap"><canvas id="battleCanvas"></canvas><div id="learningToast" class="learning-toast"><b>KNOWLEDGE CORE</b><span>เดินเก็บ Data Core เพื่อรับความรู้และชาร์จ Ability</span></div><div class="battle-tip">WASD/ปุ่มลูกศร = เดิน · เมาส์ = เล็ง · กดค้าง/Spacebar = ยิง · เดินเก็บ DATA CORE · กดสกิลด้านล่าง</div><div id="mobileControls" class="mobile-controls"><div class="move-pad"><button data-move="up" aria-label="เดินขึ้น">▲</button><button data-move="left" aria-label="เดินซ้าย">◀</button><button data-move="down" aria-label="เดินลง">▼</button><button data-move="right" aria-label="เดินขวา">▶</button></div><button class="mobile-fire" data-mobile-fire aria-label="ยิง">FIRE</button></div><div id="battleLoading" class="battle-loading"><i></i><p>กำลังเตรียมตัวละครจาก Game Pack...</p></div></div><div id="abilityDock" class="ability-dock">${utilityButtons}${combatSkillButtons}</div></div>`;
   const battle = new DefenseBattle({ canvas: $("battleCanvas"), mission, finalMode, sound, callbacks: {
     onLoad: ratio => { const p=$("battleLoading").querySelector("p");if(p)p.textContent=`โหลดกำลังรบ ${Math.round(ratio*100)}%`; },
     onIntegrity: updateIntegrity,
@@ -357,6 +358,7 @@ async function renderBattle(finalMode) {
     onFact: (fact,reward) => showLearningFact(fact,reward),
     onWrongTool: (used,needed) => flashWrongTool(used,needed),
     onSpecial: type => flashAbility(`[data-special="${type}"]`,true),
+    onCombatSkills: cooldowns => updateCombatSkillButtons(cooldowns),
     onWin: result => { $("defeatText").textContent=result.defeated; updateIntegrity(result.integrity); setTimeout(()=>renderDebrief(result),700); },
     onLose: showBattleLoss
   }});
@@ -369,6 +371,10 @@ async function renderBattle(finalMode) {
     const ok=battle.activateUtility(button.dataset.tool);flashAbility(`[data-tool="${button.dataset.tool}"]`,ok);
   }));
   $("abilityDock").querySelectorAll("[data-special]").forEach(button=>button.addEventListener("click",()=>battle.activateSpecial(button.dataset.special)));
+  $("abilityDock").querySelectorAll("[data-combat-skill]").forEach(button=>button.addEventListener("click",()=>{
+    const ok = battle.activateCombatSkill(button.dataset.combatSkill);
+    flashAbility(`[data-combat-skill="${button.dataset.combatSkill}"]`,ok);
+  }));
   bindBattleControls(battle);
   battle.start();
   showLearningFact(finalMode ? "สังเกตอาการที่บอสแสดง แล้วเลือกยูทิลิตี้ให้ตรงก่อนหมดเวลา" : mission.facts[0], "MISSION GUIDE");
@@ -410,6 +416,22 @@ function updateAbilityCharge(charge) {
   button.querySelector("i").style.width=`${charge}%`;button.classList.toggle("ready",charge>=100);
   button.querySelector("small").textContent=charge>=100?"พร้อมใช้งาน — กดปล่อยพลัง":`ชาร์จ ${Math.round(charge)}%`;
   const count=game.battle?.totalDefeated||0;if($("defeatText"))$("defeatText").textContent=count;
+}
+
+function updateCombatSkillButtons(cooldowns) {
+  const max = { lightning: 8, bomb: 12 };
+  Object.entries(cooldowns).forEach(([type, remaining]) => {
+    const button = document.querySelector(`[data-combat-skill="${type}"]`);
+    if (!button) return;
+    const ready = remaining <= .05;
+    button.disabled = !ready;
+    button.classList.toggle("ready", ready);
+    button.classList.toggle("cooldown", !ready);
+    button.querySelector("small").textContent = ready
+      ? (type === "lightning" ? "ฟ้าผ่าศัตรูในพื้นที่ · พร้อมใช้" : "ระเบิดวงกว้าง · พร้อมใช้")
+      : `คูลดาวน์ ${remaining.toFixed(1)} วินาที`;
+    button.querySelector("i").style.width = `${Math.max(0, 100 * (1 - remaining / max[type]))}%`;
+  });
 }
 
 function updateBossAlert(tool,timedOut=false,used=null) {
