@@ -1,590 +1,371 @@
-/* ============================================================
-   PC-8 Defense — screen flow, learning activities & game state
-   ============================================================ */
-
-const soundManager = new SoundManager();
-const assetStore = new AssetStore();
+/* PC-8 Guardian Academy — CAI game controller */
 
 const $ = id => document.getElementById(id);
-const screens = Array.from(document.querySelectorAll(".screen"));
-const savedRooms = (() => {
-  try {
-    const value = JSON.parse(localStorage.getItem("pc8_completed") || "[]");
-    return Array.isArray(value) ? value.filter(id => STAGES.some(stage => stage.id === id)) : [];
-  } catch (_) {
-    return [];
-  }
-})();
+const sound = new SoundManager();
+const SAVE_KEY = "pc8_guardian_academy_v2";
+const UNIT_ORDER = ["checkdisk", "defrag", "cleanup", "antivirus", "onedrive"];
 
 const game = {
-  completed: new Set(savedRooms),
-  bossDone: localStorage.getItem("pc8_boss_done") === "1",
-  currentStage: null,
-  currentStageIndex: -1,
-  activeBattle: null,
-  battleStarted: false,
-  quizQuestions: [],
-  quizIndex: 0,
-  quizLocked: false,
-  triageIndex: 0,
-  triageScore: 0,
-  workshop: Object.fromEntries(PRACTICE_TASKS.map(task => [task.id, 0])),
-  scheduleSelected: null,
-  scheduleMatches: new Map()
+  completed: new Set(), currentMission: null, battle: null, integrity: 100,
+  previousScreen: "scr-hub", activeScreen: "scr-start", practiceDone: false
 };
 
+function escapeHTML(value) {
+  return String(value).replace(/[&<>'"]/g, char => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[char]));
+}
+
+function loadSave() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
+    game.completed = new Set(Array.isArray(saved?.completed) ? saved.completed : []);
+  } catch { game.completed = new Set(); }
+}
+
 function saveProgress() {
-  localStorage.setItem("pc8_completed", JSON.stringify(Array.from(game.completed)));
-  localStorage.setItem("pc8_boss_done", game.bossDone ? "1" : "0");
+  localStorage.setItem(SAVE_KEY, JSON.stringify({ completed: [...game.completed] }));
+  updateTopProgress();
 }
 
 function showScreen(id) {
-  screens.forEach(screen => screen.classList.toggle("active", screen.id === id));
-  $("topbar").hidden = id === "scr-loading";
-  $("mapBtn").hidden = ["scr-loading", "scr-start", "scr-diagnosis", "scr-map"].includes(id);
+  if (game.battle && id !== "scr-game") { game.battle.stop(); game.battle = null; }
+  document.querySelectorAll(".screen").forEach(screen => screen.classList.toggle("active", screen.id === id));
+  game.previousScreen = game.activeScreen;
+  game.activeScreen = id;
   window.scrollTo({ top: 0, behavior: "smooth" });
+  if (id === "scr-hub") { renderHub(); sound.playMusic("hub"); }
 }
 
-function setMusic(key) {
-  soundManager.playMusic(key);
+function updateTopProgress() {
+  const count = UNIT_ORDER.filter(id => game.completed.has(id)).length + (game.completed.has("final") ? 1 : 0);
+  $("topProgressBar").style.width = `${count / 6 * 100}%`;
+  $("topProgressText").textContent = `${count}/6`;
 }
 
-function updateDots(activeId = "") {
-  const dots = $("roomdots");
-  dots.innerHTML = "";
-  STAGES.forEach(stage => {
-    const dot = document.createElement("span");
-    dot.className = "dot";
-    if (game.completed.has(stage.id)) dot.classList.add("done");
-    if (activeId === stage.id) dot.classList.add("now");
-    dot.title = `${stage.code}: ${stage.title}`;
-    dots.appendChild(dot);
+function initialize() {
+  loadSave();
+  renderStartCats();
+  renderRoster();
+  renderManual();
+  renderCertificate();
+  bindNavigation();
+  updateTopProgress();
+  $("soundIcon").src = `${PACK}/Ui/${sound.muted ? "BtnSound Off.png" : "BtnSound.png"}`;
+
+  let progress = 8;
+  const messages = ["เตรียมทีมแพทย์แมว", "ตรวจห้องรักษาทั้ง 5", "เชื่อมระบบป้องกันฐาน", "พร้อมปฏิบัติการ"];
+  const timer = setInterval(() => {
+    progress = Math.min(100, progress + 18 + Math.random() * 18);
+    $("loadingBar").style.width = `${progress}%`;
+    $("loadingText").textContent = messages[Math.min(messages.length - 1, Math.floor(progress / 27))];
+    if (progress >= 100) {
+      clearInterval(timer);
+      setTimeout(() => { $("loadingScreen").classList.add("is-hidden"); $("app").classList.remove("is-hidden"); }, 280);
+    }
+  }, 170);
+}
+
+function bindNavigation() {
+  $("startBtn").addEventListener("click", () => { sound.playMusic("hub"); showScreen("scr-hub"); });
+  $("homeBtn").addEventListener("click", () => showScreen("scr-hub"));
+  $("briefBackBtn").addEventListener("click", () => showScreen("scr-hub"));
+  $("launchBtn").addEventListener("click", startMission);
+  $("rosterBtn").addEventListener("click", () => { game.previousScreen = game.activeScreen; showScreen("scr-roster"); });
+  $("rosterBackBtn").addEventListener("click", () => showScreen(game.previousScreen === "scr-roster" ? "scr-hub" : game.previousScreen));
+  $("manualBtn").addEventListener("click", () => openManual("overview"));
+  document.querySelectorAll("[data-close-modal]").forEach(element => element.addEventListener("click", closeManual));
+  $("soundBtn").addEventListener("click", () => {
+    const muted = sound.toggleMute();
+    $("soundIcon").src = `${PACK}/Ui/${muted ? "BtnSound Off.png" : "BtnSound.png"}`;
   });
-  const bossDot = document.createElement("span");
-  bossDot.className = "dot";
-  if (game.bossDone) bossDot.classList.add("done");
-  if (activeId === "boss") bossDot.classList.add("now");
-  bossDot.title = "Final: ไวรัสร้าย";
-  dots.appendChild(bossDot);
+  $("certHubBtn").addEventListener("click", () => showScreen("scr-hub"));
+  $("replayFinalBtn").addEventListener("click", () => openBriefing(FINAL_MISSION));
+  document.addEventListener("keydown", event => { if (event.key === "Escape") closeManual(); });
 }
 
-function defenderPortrait(key) {
-  return `${DEFENDERS[key].img}/idle/idle_00.png`;
+function renderStartCats() {
+  $("startCats").innerHTML = CAT_TEAM.map(cat => `<img src="${catIdlePath(cat.id)}" alt="${escapeHTML(cat.name)}" title="${escapeHTML(cat.name)}">`).join("");
 }
 
-/* ---------- pre-op diagnosis ---------- */
-
-function openDiagnosis() {
-  game.triageIndex = 0;
-  game.triageScore = 0;
-  $("triageScore").textContent = "0";
-  setMusic("hub");
-  showScreen("scr-diagnosis");
-  renderTriage();
-}
-
-function renderTriage() {
-  const options = $("triageOptions");
-  const feedback = $("triageFeedback");
-  options.innerHTML = "";
-  feedback.textContent = "";
-
-  if (game.triageIndex >= TRIAGE_CASES.length) {
-    $("triageTitle").textContent = "วินิจฉัยครบทุกเคส";
-    $("triageSymptom").textContent = "คุณพร้อมนำหน่วยยูทิลิตี้เข้าสู่ห้องรักษาแล้ว";
-    const next = document.createElement("button");
-    next.className = "btn btn-primary btn-lg";
-    next.type = "button";
-    next.textContent = "เข้าสู่แผนที่ภารกิจ →";
-    next.addEventListener("click", openMap);
-    options.appendChild(next);
-    feedback.textContent = "จำไว้: เลือกเครื่องมือให้ตรงอาการ ช่วยให้แก้ปัญหาได้เร็วและปลอดภัย";
-    feedback.className = "feedback success";
-    return;
-  }
-
-  const item = TRIAGE_CASES[game.triageIndex];
-  $("triageTitle").textContent = `เคสที่ ${game.triageIndex + 1} จาก ${TRIAGE_CASES.length}`;
-  $("triageSymptom").textContent = item.symptom;
-
-  ["checkdisk", "defrag", "cleanup", "antivirus"].forEach(key => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "triage-option";
-    button.innerHTML = `<img src="${defenderPortrait(key)}" alt=""><span><b>${DEFENDERS[key].tool}</b><small>${DEFENDERS[key].name}</small></span>`;
-    button.addEventListener("click", () => {
-      if (key !== item.answer) {
-        button.classList.remove("wrong");
-        void button.offsetWidth;
-        button.classList.add("wrong");
-        feedback.className = "feedback error";
-        feedback.textContent = "ยังไม่ตรงอาการ ลองเทียบหน้าที่ของเครื่องมืออีกครั้ง";
-        soundManager.play("damage");
-        return;
-      }
-      options.querySelectorAll("button").forEach(option => (option.disabled = true));
-      button.classList.add("correct");
-      feedback.className = "feedback success";
-      feedback.textContent = `ถูกต้อง — ${item.result}`;
-      game.triageIndex += 1;
-      game.triageScore += 1;
-      $("triageScore").textContent = String(game.triageScore);
-      soundManager.play("waveClear");
-      window.setTimeout(renderTriage, 950);
-    });
-    options.appendChild(button);
+function renderHub() {
+  const finishedUnits = UNIT_ORDER.filter(id => game.completed.has(id)).length;
+  const rank = game.completed.has("final") ? ["SYSTEM GUARDIAN", "ผ่านหลักสูตร PC-8 สมบูรณ์"]
+    : finishedUnits >= 4 ? ["SPECIALIST", "พร้อมเปิดศึก PC-8 Core"]
+    : finishedUnits >= 2 ? ["TECHNICIAN", `ผ่านแล้ว ${finishedUnits} ห้องรักษา`]
+    : ["INTERN", finishedUnits ? "ฝึกต่อเพื่อเลื่อนระดับ" : "เริ่มภารกิจแรกเพื่อรับตรา"];
+  $("rankText").textContent = rank[0]; $("rankSub").textContent = rank[1];
+  const nodes = MISSIONS.map((mission, index) => {
+    const locked = index > 0 && !game.completed.has(MISSIONS[index - 1].id);
+    const complete = game.completed.has(mission.id);
+    const hero = CAT_TEAM.find(cat => cat.id === mission.team[1]);
+    return `<button class="mission-node ${locked ? "locked" : ""} ${complete ? "complete" : ""}" data-mission="${mission.id}" ${locked ? "disabled" : ""}>
+      <span class="node-num">${complete ? "✓" : mission.chapter}</span><img class="mission-cat" src="${catIdlePath(hero.id)}" alt="">
+      <h3>${escapeHTML(mission.title)}</h3><p>${escapeHTML(mission.mechanic)}</p><span class="node-state">${complete ? "รักษาสำเร็จ · เล่นซ้ำได้" : locked ? "LOCKED" : "พร้อมปฏิบัติการ"}</span></button>`;
   });
+  const finalLocked = UNIT_ORDER.some(id => !game.completed.has(id));
+  nodes.push(`<button class="mission-node final-node ${finalLocked ? "locked" : ""} ${game.completed.has("final") ? "complete" : ""}" data-mission="final" ${finalLocked ? "disabled" : ""}>
+    <span class="node-num">${game.completed.has("final") ? "✓" : "F"}</span><img class="mission-cat" src="${PACK}/Enemies/Enemy Boss 7/Idle/Enemy-Idle_00.png" alt="">
+    <h3>PC-8 CORE EMERGENCY</h3><p>15 ฮีโร่ · 5 ยูทิลิตี้ · บอส 5 ตัว</p><span class="node-state">${finalLocked ? `ผ่านอีก ${5-finishedUnits} ภารกิจเพื่อปลดล็อก` : "FINAL OPERATION"}</span></button>`);
+  $("missionMap").innerHTML = nodes.join("");
+  $("missionMap").querySelectorAll("[data-mission]").forEach(button => button.addEventListener("click", () => {
+    const id = button.dataset.mission;
+    openBriefing(id === "final" ? FINAL_MISSION : MISSIONS.find(mission => mission.id === id));
+  }));
 }
 
-/* ---------- mission map & lessons ---------- */
-
-function openMap() {
-  destroyBattle();
-  setMusic("hub");
-  renderMap();
-  updateDots();
-  showScreen("scr-map");
-}
-
-function renderMap() {
-  const grid = $("hubGrid");
-  grid.innerHTML = "";
-
-  STAGES.forEach((stage, index) => {
-    const unlocked = index === 0 || game.completed.has(STAGES[index - 1].id);
-    const done = game.completed.has(stage.id);
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `room-card${unlocked ? "" : " locked"}${done ? " done" : ""}`;
-    card.disabled = !unlocked;
-    const status = done ? "ผ่านแล้ว" : unlocked ? "พร้อมรักษา" : "ล็อก";
-    const statusClass = done ? "done" : unlocked ? "ready" : "locked";
-    card.innerHTML = `
-      <div class="rc-top">
-        <img class="rc-icon" src="${defenderPortrait(stage.defender)}" alt="">
-        <span class="status ${statusClass}">${status}</span>
-      </div>
-      <span class="eyebrow">${stage.code}</span>
-      <h3>${stage.title}</h3>
-      <p>${stage.subtitle}</p>`;
-    if (unlocked) card.addEventListener("click", () => openLesson(stage, index));
-    grid.appendChild(card);
-  });
-
-  const bossUnlocked = STAGES.every(stage => game.completed.has(stage.id));
-  const boss = document.createElement("button");
-  boss.type = "button";
-  boss.className = `room-card boss${bossUnlocked ? "" : " locked"}${game.bossDone ? " done" : ""}`;
-  boss.disabled = !bossUnlocked;
-  boss.innerHTML = `
-    <div class="rc-top">
-      <img class="rc-icon" src="${ENEMY_TYPES.boss.img}/idle/idle_00.png" alt="">
-      <span class="status ${game.bossDone ? "done" : bossUnlocked ? "ready" : "locked"}">${game.bossDone ? "ชนะแล้ว" : bossUnlocked ? "BOSS READY" : "ผ่าน 5 ห้องก่อน"}</span>
-    </div>
-    <span class="eyebrow">FINAL BATTLE</span>
-    <h3>${BOSS_STAGE.title}</h3>
-    <p>${BOSS_STAGE.subtitle}</p>`;
-  if (bossUnlocked) boss.addEventListener("click", () => openLesson(BOSS_STAGE, -1));
-  grid.appendChild(boss);
-}
-
-function openLesson(stage, index) {
-  game.currentStage = stage;
-  game.currentStageIndex = index;
-  updateDots(stage.id);
-  $("lessonCode").textContent = stage.code;
-  $("lessonTitle").textContent = stage.title;
-  $("lessonHeading").textContent = stage.lesson.heading;
-  $("lessonBody").textContent = stage.lesson.body;
-  const steps = $("lessonSteps");
-  steps.innerHTML = "";
-  stage.lesson.steps.forEach((step, stepIndex) => {
-    const row = document.createElement("div");
-    row.className = "step";
-    row.innerHTML = `<span class="num">${stepIndex + 1}</span><span>${step}</span>`;
-    steps.appendChild(row);
-  });
-  $("lessonGo").textContent = stage.id === "boss" ? "เข้าสนามบอส ▶" : "เข้าสนามรักษา ▶";
-  showScreen("scr-lesson");
-}
-
-/* ---------- tower-defense battle ---------- */
-
-function destroyBattle() {
-  if (game.activeBattle) game.activeBattle.destroy();
-  game.activeBattle = null;
-  game.battleStarted = false;
-}
-
-function openBattle() {
-  const stage = game.currentStage;
-  if (!stage) return openMap();
-  destroyBattle();
-  updateDots(stage.id);
-  showScreen("scr-battle");
-  setMusic(stage.id === "boss" ? "boss" : "battle");
-  $("battleOverlay").classList.add("hidden");
-  $("battleStart").hidden = false;
-  $("battleStart").disabled = true;
-  $("battleStart").textContent = "ปล่อยคลื่นศัตรู ▶";
-  $("healthBar").style.width = "100%";
-  $("coinsNum").textContent = String(stage.startCoins);
-  $("waveNum").textContent = `0/${stage.waves.reduce((sum, wave) => sum + wave.count, 0)}`;
-
-  game.activeBattle = new Battle($("battleMount"), assetStore, stage, {
-    onCoins: coins => {
-      $("coinsNum").textContent = String(coins);
-      updatePaletteAffordability();
-    },
-    onHealth: health => {
-      $("healthBar").style.width = `${health}%`;
-      $("healthBar").style.background = health > 40 ? "var(--pulse)" : "var(--alert)";
-    },
-    onWave: (spawned, total) => {
-      $("waveNum").textContent = `${spawned}/${total}`;
-    },
-    onPlacement: updateBattleReadiness,
-    onClear: battleWon,
-    onLose: battleLost
-  });
-  renderBattlePalette();
-  updateBattleReadiness();
-}
-
-function renderBattlePalette() {
-  const stage = game.currentStage;
-  const keys = stage.id === "boss" ? Object.keys(DEFENDERS) : [stage.defender];
-  const palette = $("battlePalette");
-  palette.innerHTML = "";
-  keys.forEach((key, index) => {
-    const def = DEFENDERS[key];
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `palette-btn${index === 0 ? " armed" : ""}`;
-    button.dataset.key = key;
-    button.innerHTML = `<img src="${defenderPortrait(key)}" alt=""><span>${def.tool}<small class="cost">${def.cost} เหรียญ</small></span>`;
-    button.addEventListener("click", () => {
-      palette.querySelectorAll(".palette-btn").forEach(item => item.classList.remove("armed"));
-      button.classList.add("armed");
-      game.activeBattle.armDefender(key);
-      $("battleHint").textContent = `เลือก ${def.tool} แล้ว — แตะช่องเส้นประบนสนามเพื่อวางหน่วย`;
-    });
-    palette.appendChild(button);
-  });
-  game.activeBattle.armDefender(keys[0]);
-}
-
-function updatePaletteAffordability() {
-  if (!game.activeBattle) return;
-  $("battlePalette").querySelectorAll(".palette-btn").forEach(button => {
-    button.disabled = game.activeBattle.coins < DEFENDERS[button.dataset.key].cost;
-  });
-}
-
-function updateBattleReadiness() {
-  if (!game.activeBattle || game.battleStarted) return;
-  const placed = game.activeBattle.defenders.filter(Boolean);
-  const start = $("battleStart");
-  if (game.currentStage.id === "boss") {
-    const unique = new Set(placed.map(unit => unit.key));
-    const missing = Object.keys(DEFENDERS).filter(key => !unique.has(key));
-    start.disabled = missing.length > 0;
-    $("battleHint").textContent = missing.length
-      ? `เตรียมทีมบอส: ยังขาด ${missing.map(key => DEFENDERS[key].tool).join(", ")}`
-      : "ทีมยูทิลิตี้ครบ 5 ชนิดแล้ว — พร้อมรับมือไวรัสร้าย";
+function openBriefing(mission) {
+  game.currentMission = mission;
+  $("briefChapter").textContent = mission.id === "final" ? "FINAL OPERATION" : `ROOM ${mission.chapter} · ${mission.mechanic}`;
+  $("briefTitle").textContent = mission.title;
+  $("briefSubtitle").textContent = mission.subtitle;
+  const dialogue = mission.intro || [
+    "ภัยสุขภาพทั้ง 5 ด้านบุกถึง PC-8 Core พร้อมกัน",
+    "สังเกตอาการของบอส แล้วเลือกยูทิลิตี้ที่รักษาได้ตรงจุด",
+    "ทีม 15 ฮีโร่ พร้อม Cat Guardian และ Cat Boxing จะสนับสนุนการต่อสู้"
+  ];
+  $("briefDialogue").innerHTML = dialogue.map((line,index) => `<div class="dialogue-line"><b>${index ? "ข้อมูล" : "ALERT"}</b><span>${escapeHTML(line)}</span></div>`).join("");
+  const displayTeam = mission.team.map(id => CAT_TEAM[id - 1]);
+  $("briefTeam").innerHTML = displayTeam.map(cat => `<div class="team-member"><img src="${catIdlePath(cat.id)}" alt=""><div><strong>${escapeHTML(cat.name)}</strong><small>${escapeHTML(cat.role)}</small></div></div>`).join("");
+  if (mission.id === "final") {
+    $("briefTool").textContent = "เครื่องมือครบ 5 ระบบ";
+    $("briefEffect").textContent = "จับคู่อาการผิดปกติกับเครื่องมือให้ถูกต้องเพื่อทำลายเกราะบอส";
   } else {
-    start.disabled = placed.length === 0;
-    $("battleHint").textContent = placed.length
-      ? `วางกำลังแล้ว ${placed.length} หน่วย จะวางเพิ่มหรือเริ่มการโจมตีก็ได้`
-      : "เลือกหน่วย แล้วแตะช่องเส้นประบนสนามเพื่อวางกำลัง";
+    $("briefTool").textContent = UTILITIES[mission.id].name;
+    $("briefEffect").textContent = UTILITIES[mission.id].effect;
   }
-  updatePaletteAffordability();
+  $("launchBtn").textContent = mission.id === "final" ? "ระดมทีมทั้ง 15 ตัว" : "เริ่มปฏิบัติการ";
+  showScreen("scr-briefing");
 }
 
-function startEnemyWaves() {
-  if (!game.activeBattle || game.battleStarted || $("battleStart").disabled) return;
-  game.battleStarted = true;
-  $("battleStart").disabled = true;
-  $("battleStart").textContent = "กำลังป้องกัน PC-8";
-  $("battleHint").textContent = "กำจัดภัยคุกคามก่อนถึงเส้นฐานระบบ — ศัตรูที่ถูกกำจัดจะคืนเหรียญให้ทีม";
-  game.activeBattle.start();
-}
-
-function showBattleResult(title, body, actions) {
-  $("overlayTitle").textContent = title;
-  $("overlayBody").textContent = body;
-  const actionRow = $("overlayActions");
-  actionRow.innerHTML = "";
-  actions.forEach(action => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `btn ${action.primary ? "btn-primary" : "btn-ghost"}`;
-    button.textContent = action.label;
-    button.addEventListener("click", action.run);
-    actionRow.appendChild(button);
-  });
-  $("battleOverlay").classList.remove("hidden");
-}
-
-function battleWon() {
-  soundManager.play("victory");
-  if (game.currentStage.id === "boss") {
-    showBattleResult("กำจัดไวรัสร้ายสำเร็จ!", "ระบบปลอดภัยแล้ว เหลือภารกิจลงมือปฏิบัติและจัดตารางดูแลระยะยาว", [
-      { label: "ทำภารกิจใบงาน →", primary: true, run: openWorkshop }
-    ]);
-    return;
+function startMission() {
+  game.integrity = 100;
+  game.practiceDone = false;
+  showScreen("scr-game");
+  $("gameChapter").textContent = game.currentMission.id === "final" ? "FINAL OPERATION" : `ROOM ${game.currentMission.chapter}`;
+  $("gameTitle").textContent = game.currentMission.title;
+  updateIntegrity(100);
+  if (game.currentMission.id === "final") {
+    setPhase(1); renderBattle(true);
+  } else {
+    setPhase(0); renderPractice();
   }
-  showBattleResult("เคลียร์ภัยคุกคามแล้ว", "ผ่านสนามต่อสู้ แต่ต้องยืนยันความเข้าใจในด่านความรู้ก่อนปลดล็อกห้องถัดไป", [
-    { label: "ไปด่านความรู้ →", primary: true, run: openQuiz },
-    { label: "กลับแผนที่", run: openMap }
-  ]);
 }
 
-function battleLost() {
-  showBattleResult("PC-8 ต้องการการรักษาใหม่", "ภัยคุกคามผ่านแนวป้องกันมากเกินไป ลองวางหน่วยเพิ่มหรือปรับชนิดหน่วยก่อนปล่อยคลื่น", [
-    { label: "ลองด่านนี้อีกครั้ง", primary: true, run: openBattle },
-    { label: "กลับแผนที่", run: openMap }
-  ]);
-}
-
-/* ---------- knowledge quiz ---------- */
-
-function openQuiz() {
-  destroyBattle();
-  setMusic("hub");
-  const quiz = game.currentStage.quiz;
-  game.quizQuestions = quiz.questions || [quiz];
-  game.quizIndex = 0;
-  game.quizLocked = false;
-  showScreen("scr-quiz");
-  renderQuizQuestion();
-}
-
-function renderQuizQuestion() {
-  const question = game.quizQuestions[game.quizIndex];
-  const options = $("quizOptions");
-  $("quizFeedback").textContent = "";
-  $("quizFeedback").className = "feedback";
-  options.innerHTML = "";
-
-  if (!question) {
-    finishQuiz();
-    return;
-  }
-
-  $("quizQ").textContent = `คำถาม ${game.quizIndex + 1}/${game.quizQuestions.length} · ${question.q}`;
-  question.options.forEach((option, index) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "quiz-opt";
-    button.textContent = option;
-    button.addEventListener("click", () => answerQuiz(button, index, question));
-    options.appendChild(button);
+function setPhase(index) {
+  $("phaseTrack").querySelectorAll("span").forEach((step, stepIndex) => {
+    step.classList.toggle("active", stepIndex === index);
+    step.classList.toggle("done", stepIndex < index);
   });
 }
 
-function answerQuiz(button, answer, question) {
-  if (game.quizLocked) return;
-  const feedback = $("quizFeedback");
-  if (answer !== question.correct) {
-    button.classList.remove("wrong");
-    void button.offsetWidth;
-    button.classList.add("wrong");
-    button.disabled = true;
-    feedback.className = "feedback error";
-    feedback.textContent = "ยังไม่ถูก ลองตัดตัวเลือกที่ไม่ตรงกับหน้าที่ของเครื่องมือนี้";
-    soundManager.play("damage");
-    return;
+function updateIntegrity(value) {
+  game.integrity = Math.max(0, Math.round(value));
+  $("integrityBar").style.width = `${game.integrity}%`;
+  $("integrityText").textContent = `${game.integrity}%`;
+}
+
+function teamCoach(mission) {
+  const cat = CAT_TEAM[mission.team[0] - 1];
+  return `<aside><div class="coach-panel"><img src="${catIdlePath(cat.id)}" alt=""><div><strong>${escapeHTML(cat.name)}</strong><p id="coachText">${escapeHTML(mission.intro[1])}</p></div></div><div class="fact-stack">${mission.facts.map(fact => `<div class="fact-chip">${escapeHTML(fact)}</div>`).join("")}</div></aside>`;
+}
+
+function renderPractice() {
+  const mission = game.currentMission;
+  if (mission.id === "defrag") return renderDefrag();
+  if (mission.id === "cleanup") return renderCleanup();
+  renderSequence(mission, mission.id === "checkdisk" ? renderSectorScan : finishPractice);
+}
+
+function procedureStrip(sequence) {
+  return `<div class="sequence-board">${sequence.map((step,index) => `<div class="sequence-step done"><b>${index+1}</b>${escapeHTML(step)}</div>`).join("")}</div>`;
+}
+
+function renderSequence(mission, onComplete) {
+  const order = mission.sequence.map((label,index) => ({ label,index }));
+  const shuffled = [...order].sort(() => Math.random() - .5);
+  let expected = 0;
+  $("missionMount").innerHTML = `<div class="sim-layout"><section class="sim-console"><p class="eyebrow">INTERACTIVE PROCEDURE</p><h3>สั่งงานระบบตามลำดับจริง</h3><p class="sim-instruction">เลือกคำสั่งถัดไปให้ถูกต้อง ระบบจะบันทึกขั้นตอนลง Workflow</p><div class="defrag-meter"><span>ขั้นตอนที่ต้องทำ</span><b id="sequenceProgress">1 / ${order.length}</b></div><div id="sequenceBoard" class="sequence-board"></div><p id="sequenceFeedback" class="feedback-line">เริ่มจาก: ${escapeHTML(order[0].label)}</p></section>${teamCoach(mission)}</div>`;
+  const board = $("sequenceBoard");
+  board.innerHTML = shuffled.map(item => `<button class="sequence-step" type="button" data-step="${item.index}"><b>?</b>${escapeHTML(item.label)}</button>`).join("");
+  board.querySelectorAll("button").forEach(button => button.addEventListener("click", () => {
+    const index = Number(button.dataset.step);
+    if (index !== expected) {
+      button.classList.remove("wrong"); void button.offsetWidth; button.classList.add("wrong");
+      $("sequenceFeedback").textContent = `ลำดับยังไม่ถูก — ขั้นต่อไปคือ “${order[expected].label}”`;
+      practiceDamage(5); sound.play("damage"); return;
+    }
+    button.classList.remove("wrong"); button.classList.add("done"); button.disabled = true;
+    button.querySelector("b").textContent = expected + 1; expected++; sound.play("hit");
+    if (expected >= order.length) {
+      $("sequenceProgress").textContent = "WORKFLOW COMPLETE";
+      $("sequenceFeedback").textContent = "ลำดับถูกต้อง ระบบจำลองพร้อมทำงาน";
+      setTimeout(onComplete, 600);
+    } else {
+      $("sequenceProgress").textContent = `${expected + 1} / ${order.length}`;
+      $("sequenceFeedback").textContent = `ขั้นถัดไป: ${order[expected].label}`;
+    }
+  }));
+}
+
+function practiceDamage(amount) {
+  updateIntegrity(game.integrity - amount);
+  if (game.integrity <= 0) {
+    updateIntegrity(35);
+    $("coachText").textContent = "ระบบจำลองรีสตาร์ตให้แล้ว ลองสังเกตคำแนะนำและทำใหม่อีกครั้ง";
   }
-
-  game.quizLocked = true;
-  button.classList.add("correct");
-  $("quizOptions").querySelectorAll("button").forEach(option => (option.disabled = true));
-  feedback.className = "feedback success";
-  feedback.textContent = `ถูกต้อง — ${question.explain || "เลือกคำตอบได้ตรงกับบทเรียน"}`;
-  soundManager.play("waveClear");
-  game.quizIndex += 1;
-  window.setTimeout(() => {
-    game.quizLocked = false;
-    renderQuizQuestion();
-  }, 1050);
 }
 
-function finishQuiz() {
-  const stage = game.currentStage;
-  game.completed.add(stage.id);
-  saveProgress();
-  updateDots(stage.id);
-  $("quizQ").textContent = `${stage.title}: ผ่านการรักษาแล้ว`;
-  $("quizFeedback").className = "feedback success";
-  $("quizFeedback").textContent = game.completed.size === STAGES.length
-    ? "ปลดล็อกสนามบอสแล้ว!"
-    : "ห้องถัดไปถูกปลดล็อกแล้ว";
-  $("quizOptions").innerHTML = "";
-  const next = document.createElement("button");
-  next.type = "button";
-  next.className = "btn btn-primary btn-lg";
-  next.textContent = game.completed.size === STAGES.length ? "เข้าสู่แผนที่บอส →" : "กลับแผนที่ภารกิจ →";
-  next.addEventListener("click", openMap);
-  $("quizOptions").appendChild(next);
+function renderSectorScan() {
+  const corrupt = new Set([2, 7, 13, 18]);
+  let fixed = 0;
+  $("missionMount").querySelector(".sim-console").innerHTML = `<p class="eyebrow">CHECK DISK SCANNER</p><h3>ระบุเซกเตอร์ที่มี File System Error</h3><p class="sim-instruction">จุดสีแดงคือโครงสร้างไฟล์เสียหาย คลิกให้ครบเพื่อสั่งซ่อม</p><div id="sectorGrid" class="sector-grid">${Array.from({length:20},(_,index)=>`<button class="sector ${corrupt.has(index) ? "corrupt" : ""}" data-sector="${index}" type="button"></button>`).join("")}</div><p id="sectorFeedback" class="feedback-line">ตรวจพบสัญญาณผิดปกติ 4 จุด</p><div id="practiceActions" class="sim-actions"></div>`;
+  $("sectorGrid").querySelectorAll("button").forEach(button => button.addEventListener("click", () => {
+    const index = Number(button.dataset.sector);
+    if (!corrupt.has(index)) { button.classList.add("wrong"); $("sectorFeedback").textContent="จุดนี้ปกติ — มองหาเซกเตอร์สีแดง"; practiceDamage(3); return; }
+    if (button.classList.contains("fixed")) return;
+    button.classList.add("fixed"); fixed++; sound.play("hit");
+    $("sectorFeedback").textContent = `ซ่อมแล้ว ${fixed}/4 จุด`;
+    if (fixed === corrupt.size) finishPractice();
+  }));
 }
 
-/* ---------- practical worksheet ---------- */
-
-function openWorkshop() {
-  destroyBattle();
-  setMusic("hub");
-  game.workshop = Object.fromEntries(PRACTICE_TASKS.map(task => [task.id, 0]));
-  showScreen("scr-workshop");
-  renderWorkshop();
+function renderDefrag() {
+  const target = [0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3];
+  let blocks = [0,2,1,3,1,0,3,2,2,1,0,3,3,2,1,0];
+  let selected = null; let swaps = 0;
+  $("missionMount").innerHTML = `<div class="sim-layout"><section class="sim-console"><p class="eyebrow">DEFRAGMENT LAB</p><h3>รวมชิ้นส่วนไฟล์สีเดียวกันให้ต่อเนื่อง</h3><p class="sim-instruction">คลิกบล็อก 2 ช่องเพื่อสลับตำแหน่ง เป้าหมายคือ 0% fragmented</p><div class="defrag-meter"><span>Fragmented</span><b id="fragmentText">100%</b><span>สลับ <b id="swapText">0</b> ครั้ง</span></div><div id="diskBoard" class="disk-board"></div><p id="defragFeedback" class="feedback-line">วางสีเขียว → ฟ้า → เหลือง → ม่วง กลุ่มละ 4 ช่อง</p><details><summary>ขั้นตอนใน Windows ที่ใช้จริง</summary>${procedureStrip(game.currentMission.sequence)}</details><div id="practiceActions" class="sim-actions"></div></section>${teamCoach(game.currentMission)}</div>`;
+  const board = $("diskBoard");
+  const paint = () => {
+    board.innerHTML = blocks.map((kind,index)=>`<button type="button" class="disk-block ${selected===index ? "selected" : ""}" data-index="${index}" data-kind="${kind}" aria-label="บล็อกข้อมูล ${index+1}"></button>`).join("");
+    const correct = blocks.filter((value,index)=>value===target[index]).length;
+    $("fragmentText").textContent = `${Math.round((1-correct/target.length)*100)}%`;
+    board.querySelectorAll("button").forEach(button => button.addEventListener("click", () => {
+      const index = Number(button.dataset.index);
+      if (selected === null) selected = index;
+      else { [blocks[selected],blocks[index]]=[blocks[index],blocks[selected]]; selected=null;swaps++;$("swapText").textContent=swaps;sound.play("hit"); }
+      paint();
+      if (blocks.every((value,i)=>value===target[i])) { $("defragFeedback").textContent="สถานะ OK — 0% fragmented หัวอ่านเข้าถึงข้อมูลได้ต่อเนื่อง"; finishPractice(); }
+    }));
+  };
+  paint();
 }
 
-function renderWorkshop() {
-  const grid = $("workshopGrid");
-  grid.innerHTML = "";
-  PRACTICE_TASKS.forEach((task, taskIndex) => {
-    const progress = game.workshop[task.id];
-    const complete = progress >= task.steps.length;
-    const card = document.createElement("article");
-    card.className = `card workshop-card${complete ? " complete" : ""}`;
-    const head = document.createElement("div");
-    head.className = "workshop-head";
-    head.innerHTML = `<div><span class="eyebrow">TASK ${taskIndex + 1}</span><h3>${task.title}</h3><p>${task.goal}</p></div><span class="task-status">${complete ? "✓ สำเร็จ" : `${progress}/${task.steps.length}`}</span>`;
-    card.appendChild(head);
-
-    const list = document.createElement("div");
-    list.className = "practice-steps";
-    task.steps.forEach((step, stepIndex) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `practice-step${stepIndex < progress ? " done" : stepIndex === progress ? " next" : ""}`;
-      button.disabled = stepIndex !== progress || complete;
-      button.innerHTML = `<span>${stepIndex < progress ? "✓" : stepIndex + 1}</span>${step}`;
-      if (stepIndex === progress && !complete) {
-        button.addEventListener("click", () => {
-          game.workshop[task.id] += 1;
-          soundManager.play(game.workshop[task.id] === task.steps.length ? "waveClear" : "hit");
-          renderWorkshop();
-        });
-      }
-      list.appendChild(button);
-    });
-    card.appendChild(list);
-    grid.appendChild(card);
-  });
-
-  const allDone = PRACTICE_TASKS.every(task => game.workshop[task.id] >= task.steps.length);
-  $("workshopDoneRow").classList.toggle("hidden", !allDone);
+function renderCleanup() {
+  let freed = 0; const target = 900;
+  $("missionMount").innerHTML = `<div class="sim-layout"><section class="sim-console"><p class="eyebrow">STORAGE DETOX</p><h3>คัดไฟล์ขยะเพื่อคืนพื้นที่ ${target} MB</h3><p class="sim-instruction">เลือกเฉพาะไฟล์ชั่วคราวหรือไฟล์ระบบที่ไม่จำเป็น ระวังเอกสารของผู้ใช้</p><div class="space-meter"><i id="spaceBar"></i></div><div class="defrag-meter"><span>คืนพื้นที่แล้ว</span><b id="spaceText">0 / ${target} MB</b></div><div id="fileGrid" class="file-grid"></div><p id="cleanupFeedback" class="feedback-line">แตะรายการที่ต้องการลบด้วย Disk Cleanup</p><details><summary>ขั้นตอนใน Windows ที่ใช้จริง</summary>${procedureStrip(game.currentMission.sequence)}</details><div id="practiceActions" class="sim-actions"></div></section>${teamCoach(game.currentMission)}</div>`;
+  const grid = $("fileGrid");
+  grid.innerHTML = [...CLEANUP_FILES].sort(()=>Math.random()-.5).map((file,index)=>`<button class="file-card" type="button" data-index="${CLEANUP_FILES.indexOf(file)}"><span>${file.icon}</span><b>${escapeHTML(file.name)}</b><small>${file.size} MB</small></button>`).join("");
+  grid.querySelectorAll("button").forEach(button=>button.addEventListener("click",()=>{
+    const file=CLEANUP_FILES[Number(button.dataset.index)];
+    if (!file.safe) { button.classList.remove("wrong");void button.offsetWidth;button.classList.add("wrong");$("cleanupFeedback").textContent=`ห้ามลบ ${file.name} — นี่คือข้อมูลสำคัญของผู้ใช้`;practiceDamage(8);sound.play("damage");return; }
+    if(button.classList.contains("removed"))return;
+    button.classList.add("removed");freed+=file.size;sound.play("hit");
+    $("spaceBar").style.width=`${Math.min(100,freed/target*100)}%`;$("spaceText").textContent=`${freed} / ${target} MB`;$("cleanupFeedback").textContent=`ลบ ${file.name} อย่างปลอดภัย`;
+    if(freed>=target)finishPractice();
+  }));
 }
 
-/* ---------- maintenance schedule ---------- */
-
-function openSchedule() {
-  game.scheduleSelected = null;
-  game.scheduleMatches = new Map();
-  showScreen("scr-schedule");
-  renderSchedule();
+function finishPractice() {
+  if (game.practiceDone) return;
+  game.practiceDone = true;
+  const actions = $("practiceActions");
+  if (!actions) return;
+  actions.innerHTML = `<button id="toBattleBtn" class="game-btn primary xl" type="button">นำความรู้ไปป้องกันระบบ →</button>`;
+  $("toBattleBtn").addEventListener("click",()=>{setPhase(1);renderBattle(false);});
+  sound.play("waveClear");
 }
 
-function renderSchedule() {
-  const pool = $("schedulePool");
-  const slots = $("scheduleSlots");
-  pool.innerHTML = "";
-  slots.innerHTML = "";
-
-  SCHEDULE_TASKS.forEach(task => {
-    const matched = game.scheduleMatches.has(task.id);
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = `chip${matched ? " matched" : ""}${game.scheduleSelected === task.id ? " selected" : ""}`;
-    chip.disabled = matched;
-    chip.textContent = task.label;
-    chip.addEventListener("click", () => {
-      game.scheduleSelected = task.id;
-      renderSchedule();
-    });
-    pool.appendChild(chip);
-  });
-
-  SCHEDULE_SLOTS.forEach(slot => {
-    const matchedTaskId = Array.from(game.scheduleMatches.entries()).find(([, freq]) => freq === slot.key)?.[0];
-    const matchedTask = SCHEDULE_TASKS.find(task => task.id === matchedTaskId);
-    const box = document.createElement("button");
-    box.type = "button";
-    box.className = `slotbox${matchedTask ? " filled" : ""}`;
-    box.disabled = Boolean(matchedTask);
-    box.innerHTML = matchedTask
-      ? `<span>${matchedTask.label}</span><span class="sk">${slot.label}</span>`
-      : `<span>วางงานดูแลที่นี่</span><span class="sk">${slot.label}</span>`;
-    box.addEventListener("click", () => matchSchedule(box, slot.key));
-    slots.appendChild(box);
-  });
-
-  $("scheduleDoneRow").classList.toggle("hidden", game.scheduleMatches.size !== SCHEDULE_TASKS.length);
+async function renderBattle(finalMode) {
+  const mission = game.currentMission;
+  sound.playMusic(finalMode || mission.boss ? "boss" : "battle");
+  const utilityButtons = finalMode
+    ? Object.entries(UTILITIES).map(([id,utility])=>`<button class="ability-btn" data-tool="${id}" style="--ability:${utility.color}" type="button"><b>${utility.icon} ${utility.name}</b><small>${utility.symptom}</small><i></i></button>`).join("") + `<button class="ability-btn special-ability" data-special="guardian" style="--ability:#53d6a5" type="button"><img src="${PACK}/Cat Guardian/Idle/Enemy-Idle_00.png" alt=""><b>Cat Guardian</b><small>ฟื้นฟูฐาน</small><i></i></button><button class="ability-btn special-ability" data-special="boxing" style="--ability:#ffbd4a" type="button"><img src="${PACK}/CatBoxing/Idle/CatBoxing-Idle_00.png" alt=""><b>Cat Boxing</b><small>หมัดทำลายเกราะ</small><i></i></button>`
+    : `<button class="ability-btn" id="missionAbility" data-tool="${mission.id}" style="--ability:${UTILITIES[mission.id].color}" type="button"><b>${UTILITIES[mission.id].icon} ${UTILITIES[mission.id].name}</b><small>พลังยังไม่เต็ม</small><i></i></button>`;
+  $("missionMount").innerHTML = `<div class="battle-shell"><div class="battle-hud"><div><span>WAVE</span><strong id="waveText">PREPARE</strong><span>กำจัด</span><strong id="defeatText">0</strong></div><div><span>วิธีเล่น</span><strong>${finalMode ? "เลือกยูทิลิตี้จากอาการบอส" : "คลิกศัตรูช่วยทีมโจมตี"}</strong></div></div><div id="bossAlert" class="boss-alert" ${finalMode ? "" : "hidden"}>รอวิเคราะห์อาการของบอส...</div><div class="battle-canvas-wrap"><canvas id="battleCanvas"></canvas><div class="battle-tip">คลิกศัตรูเพื่อ Manual Strike · ทีมแมวจะยิงอัตโนมัติ</div><div id="battleLoading" class="battle-loading"><i></i><p>กำลังเตรียมตัวละครจาก Game Pack...</p></div></div><div id="abilityDock" class="ability-dock">${utilityButtons}</div></div>`;
+  const battle = new DefenseBattle({ canvas: $("battleCanvas"), mission, finalMode, sound, callbacks: {
+    onLoad: ratio => { const p=$("battleLoading").querySelector("p");if(p)p.textContent=`โหลดกำลังรบ ${Math.round(ratio*100)}%`; },
+    onIntegrity: updateIntegrity,
+    onCharge: charge => updateAbilityCharge(charge),
+    onWave: (current,total,wave) => { $("waveText").textContent=`${current}/${total} ${wave.kind === "boss" ? "· BOSS" : ""}`; },
+    onAlert: (tool,timedOut,used) => updateBossAlert(tool,timedOut,used),
+    onWrongTool: (used,needed) => flashWrongTool(used,needed),
+    onSpecial: type => flashAbility(`[data-special="${type}"]`,true),
+    onWin: result => { $("defeatText").textContent=result.defeated; updateIntegrity(result.integrity); setTimeout(()=>renderDebrief(result),700); },
+    onLose: showBattleLoss
+  }});
+  game.battle = battle;
+  await battle.load();
+  if (game.battle !== battle) return;
+  battle.integrity = game.integrity;
+  $("battleLoading").classList.add("hide");
+  $("abilityDock").querySelectorAll("[data-tool]").forEach(button=>button.addEventListener("click",()=>{
+    const ok=battle.activateUtility(button.dataset.tool);flashAbility(`[data-tool="${button.dataset.tool}"]`,ok);
+  }));
+  $("abilityDock").querySelectorAll("[data-special]").forEach(button=>button.addEventListener("click",()=>battle.activateSpecial(button.dataset.special)));
+  battle.start();
 }
 
-function matchSchedule(box, freq) {
-  if (!game.scheduleSelected) {
-    box.classList.remove("wrongflash");
-    void box.offsetWidth;
-    box.classList.add("wrongflash");
-    return;
-  }
-  const task = SCHEDULE_TASKS.find(item => item.id === game.scheduleSelected);
-  if (task.freq !== freq) {
-    box.classList.remove("wrongflash");
-    void box.offsetWidth;
-    box.classList.add("wrongflash");
-    soundManager.play("damage");
-    return;
-  }
-  game.scheduleMatches.set(task.id, freq);
-  game.scheduleSelected = null;
-  soundManager.play("hit");
-  renderSchedule();
+function updateAbilityCharge(charge) {
+  const button=$("missionAbility");if(!button)return;
+  button.querySelector("i").style.width=`${charge}%`;button.classList.toggle("ready",charge>=100);
+  button.querySelector("small").textContent=charge>=100?"พร้อมใช้งาน — กดปล่อยพลัง":`ชาร์จ ${Math.round(charge)}%`;
+  const count=game.battle?.totalDefeated||0;if($("defeatText"))$("defeatText").textContent=count;
 }
 
-function openEnd() {
-  game.bossDone = true;
-  saveProgress();
-  updateDots("boss");
-  soundManager.play("victory");
-  showScreen("scr-end");
+function updateBossAlert(tool,timedOut=false,used=null) {
+  const alert=$("bossAlert");if(!alert)return;
+  if(used){alert.innerHTML=`เลือก <b>${UTILITIES[used].name}</b> ถูกต้อง — เกราะบอสแตก!`;return;}
+  if(!tool){alert.innerHTML="กำจัดภัยคุกคามแล้ว เตรียมวิเคราะห์บอสตัวถัดไป...";return;}
+  alert.innerHTML=`${timedOut?"ระบบเสียหาย! ":"ตรวจพบอาการ: "}<b>${UTILITIES[tool].symptom}</b> — เลือกเครื่องมือรักษาให้ตรงจุด`;
 }
 
-/* ---------- controls & boot ---------- */
+function flashAbility(selector,ok) {
+  const button=$("abilityDock")?.querySelector(selector);if(!button)return;
+  const cls=ok?"correct-call":"wrong-call";button.classList.remove(cls);void button.offsetWidth;button.classList.add(cls);setTimeout(()=>button.classList.remove(cls),650);
+}
 
-$("btnPlay").addEventListener("click", openDiagnosis);
-$("lessonBack").addEventListener("click", openMap);
-$("lessonGo").addEventListener("click", openBattle);
-$("battleStart").addEventListener("click", startEnemyWaves);
-$("workshopNext").addEventListener("click", openSchedule);
-$("scheduleNext").addEventListener("click", openEnd);
-$("mapBtn").addEventListener("click", openMap);
-$("soundBtn").addEventListener("click", () => {
-  const muted = soundManager.toggleMute();
-  $("soundBtn").textContent = muted ? "🔇" : "🔊";
-  $("soundBtn").setAttribute("aria-label", muted ? "เปิดเสียง" : "ปิดเสียง");
-});
-$("btnReplay").addEventListener("click", () => {
-  localStorage.removeItem("pc8_completed");
-  localStorage.removeItem("pc8_boss_done");
-  location.reload();
-});
+function flashWrongTool(used,needed) {
+  flashAbility(`[data-tool="${used}"]`,false);
+  const alert=$("bossAlert");if(alert)alert.innerHTML=`เครื่องมือไม่ตรงอาการ — <b>${UTILITIES[needed].symptom}</b> ต้องใช้เครื่องมืออีกชนิด`;
+}
 
-$("soundBtn").textContent = soundManager.muted ? "🔇" : "🔊";
-updateDots();
+function showBattleLoss() {
+  sound.playMusic("hub");
+  $("resultCard").innerHTML=`<img src="${PACK}/Ui/LosePopUp.png" alt="" style="width:180px"><h3>ระบบยังไม่ปลอดภัย</h3><p>ทบทวนขั้นตอน แล้ววางแผนใช้พลังให้ตรงกับสถานการณ์</p><div class="actions"><button id="retryBtn" class="game-btn primary">ลองภารกิจอีกครั้ง</button><button id="lossHubBtn" class="game-btn">กลับศูนย์</button></div>`;
+  $("resultOverlay").classList.add("open");$("resultOverlay").setAttribute("aria-hidden","false");
+  $("retryBtn").onclick=()=>{closeResult();startMission();};$("lossHubBtn").onclick=()=>{closeResult();showScreen("scr-hub");};
+}
 
-assetStore.preload((done, total) => {
-  const pct = Math.round((done / total) * 100);
-  $("loadBar").style.width = `${pct}%`;
-  $("loadPct").textContent = String(pct);
-}).then(() => {
-  $("loadBar").style.width = "100%";
-  $("loadPct").textContent = "100";
-  window.setTimeout(() => showScreen("scr-start"), 220);
-}).catch(() => {
-  $("loadPct").textContent = "100";
-  showScreen("scr-start");
-});
+function closeResult(){$("resultOverlay").classList.remove("open");$("resultOverlay").setAttribute("aria-hidden","true");}
 
+function renderDebrief(result) {
+  if(game.battle){game.battle.stop();game.battle=null;}
+  const mission=game.currentMission;setPhase(2);game.completed.add(mission.id);saveProgress();sound.playMusic("hub");
+  const facts=mission.facts || FINAL_MISSION.facts;
+  $("missionMount").innerHTML=`<div class="debrief"><img class="badge-art" src="${PACK}/Ui/WinBonus.png" alt=""><p class="eyebrow">SYSTEM STABILIZED · INTEGRITY ${result.integrity}%</p><h3>${mission.id==="final"?"ปกป้อง PC-8 Core สำเร็จ":escapeHTML(mission.reward)}</h3><p>ความรู้ที่นำไปใช้ในภารกิจนี้</p><div class="takeaways">${facts.map((fact,index)=>`<div class="takeaway"><b>${index+1}</b> ${escapeHTML(fact)}</div>`).join("")}</div><button id="debriefNext" class="game-btn primary xl" type="button">${mission.id==="final"?"รับประกาศนียบัตร":"กลับแผนที่ภารกิจ"}</button></div>`;
+  $("debriefNext").addEventListener("click",()=>mission.id==="final"?(renderCertificate(),showScreen("scr-certificate")):showScreen("scr-hub"));
+}
+
+function renderRoster() {
+  $("rosterGrid").innerHTML=CAT_TEAM.map(cat=>{const unit=UTILITIES[cat.unit];return `<article class="roster-card" style="border-top-color:${unit.color}"><img src="${catIdlePath(cat.id)}" alt=""><strong>C${String(cat.id).padStart(2,"0")} · ${escapeHTML(cat.name)}</strong><small>${escapeHTML(cat.role)}</small><span>${unit.icon} ${escapeHTML(unit.name)}</span></article>`;}).join("");
+}
+
+function renderManual() {
+  $("manualNav").innerHTML=MANUAL_SECTIONS.map((section,index)=>`<button type="button" data-section="${section.id}" class="${index===0?"active":""}">${escapeHTML(section.title)}</button>`).join("");
+  $("manualNav").querySelectorAll("button").forEach(button=>button.addEventListener("click",()=>openManual(button.dataset.section)));
+  showManualSection("overview");
+}
+
+function openManual(sectionId="overview") { $("manualModal").classList.add("open");$("manualModal").setAttribute("aria-hidden","false");showManualSection(sectionId); }
+function closeManual() { $("manualModal").classList.remove("open");$("manualModal").setAttribute("aria-hidden","true"); }
+function showManualSection(sectionId) {
+  const section=MANUAL_SECTIONS.find(item=>item.id===sectionId)||MANUAL_SECTIONS[0];
+  $("manualNav").querySelectorAll("button").forEach(button=>button.classList.toggle("active",button.dataset.section===section.id));
+  $("manualContent").innerHTML=`<p class="eyebrow">UNIT 8 · COMPUTER HEALTH CLINIC</p><h2>${escapeHTML(section.title)}</h2><ul>${section.content.map(item=>`<li>${escapeHTML(item)}</li>`).join("")}</ul>${section.id!=="overview"&&UTILITIES[section.id]?`<div class="intel-card"><span>ตารางดูแล</span><strong>${escapeHTML(UTILITIES[section.id].cadence)}</strong><p>${escapeHTML(UTILITIES[section.id].effect)}</p></div>`:""}`;
+}
+
+function renderCertificate() {
+  $("certificateBadges").innerHTML=MISSIONS.map(mission=>`<span>${game.completed.has(mission.id)?"✓":"○"} ${escapeHTML(mission.reward)}</span>`).join("");
+  $("healthSchedule").innerHTML=HEALTH_SCHEDULE.map(item=>`<div><b>${item.icon} ${escapeHTML(item.when)}</b><strong>${escapeHTML(item.task)}</strong><small>${escapeHTML(item.detail)}</small></div>`).join("");
+}
+
+initialize();

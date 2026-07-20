@@ -1,220 +1,134 @@
 <!doctype html>
 <html lang="th">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>PC-8 Defense · คลินิกสุขภาพคอมพิวเตอร์</title>
-<meta name="description" content="เกมทาวเวอร์ดีเฟนส์ปกป้องเครื่อง PC-8 จากไวรัสและไฟล์ขยะ พร้อมเรียนรู้โปรแกรมยูทิลิตี้ วิชาระบบปฏิบัติการคอมพิวเตอร์ หน่วยที่ 8" />
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐱</text></svg>" />
-<link rel="stylesheet" href="css/style.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101b32">
+  <meta name="description" content="PC-8 Guardian Academy สื่อการเรียนรู้แบบเกม เรื่องการดูแลสุขภาพคอมพิวเตอร์ หน่วยที่ 8">
+  <title>PC-8 Guardian Academy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-<div id="app">
+  <div id="loadingScreen" class="loading-screen">
+    <img src="assets/gamepack/Ui/Logo.png" alt="PC-8" class="loading-logo">
+    <h1>กำลังเปิดศูนย์รักษา...</h1>
+    <div class="loading-track"><span id="loadingBar"></span></div>
+    <p id="loadingText">เตรียมทีมแพทย์แมว</p>
+  </div>
 
-  <section id="scr-loading" class="screen active loading-screen">
-    <div class="loading-box">
-      <div class="loading-emoji">🐱</div>
-      <h1>PC-8 Defense</h1>
-      <p class="loading-sub">คลินิกสุขภาพคอมพิวเตอร์ · กำลังโหลดหน่วยยูทิลิตี้...</p>
-      <div class="bar"><i id="loadBar" style="width:0%"></i></div>
-      <div class="loading-pct"><span id="loadPct">0</span>%</div>
+  <div id="app" class="app is-hidden">
+    <header class="topbar">
+      <button id="homeBtn" class="icon-btn" type="button" aria-label="กลับศูนย์บัญชาการ"><img src="assets/gamepack/Ui/Icon_home.png" alt=""></button>
+      <div class="brand">
+        <img src="assets/gamepack/Ui/Logo.png" alt="" class="brand-logo">
+        <div><strong>PC-8 GUARDIAN ACADEMY</strong><span>COMPUTER HEALTH CLINIC · UNIT 8</span></div>
+      </div>
+      <div class="top-progress" title="ความก้าวหน้าทั้งหลักสูตร"><span id="topProgressBar"></span></div>
+      <strong id="topProgressText" class="progress-label">0/6</strong>
+      <button id="rosterBtn" class="icon-btn text-icon" type="button" aria-label="ดูทีมแพทย์">TEAM</button>
+      <button id="manualBtn" class="icon-btn" type="button" aria-label="เปิดคู่มือ"><img src="assets/gamepack/Ui/BtnHelp.png" alt=""></button>
+      <button id="soundBtn" class="icon-btn" type="button" aria-label="เปิดหรือปิดเสียง"><img id="soundIcon" src="assets/gamepack/Ui/BtnSound.png" alt=""></button>
+    </header>
+
+    <main>
+      <section id="scr-start" class="screen active start-screen">
+        <div class="start-art"></div>
+        <div class="start-copy glass-panel">
+          <p class="eyebrow">ภารกิจเรียนรู้แบบ CAI เต็มรูปแบบ</p>
+          <h1>เมื่อระบบปฏิบัติการป่วย<br><em>ทีมแพทย์แมวต้องลงสนาม</em></h1>
+          <p>เรียนรู้ผ่านการลงมือรักษา 5 ระบบ ต่อสู้ป้องกันฐาน และรวมพลังปราบบอสสุขภาพคอมพิวเตอร์ทั้ง 5 อาการ</p>
+          <div class="start-stats">
+            <span><b>15</b> ฮีโร่</span><span><b>5</b> ห้องรักษา</span><span><b>7</b> บอส</span>
+          </div>
+          <button id="startBtn" class="game-btn primary xl" type="button">เข้าสู่ศูนย์รักษา</button>
+        </div>
+        <div id="startCats" class="cat-parade" aria-label="ทีมตัวละครทั้งหมด"></div>
+      </section>
+
+      <section id="scr-hub" class="screen hub-screen">
+        <div class="hub-heading">
+          <div><p class="eyebrow">MISSION CONTROL</p><h2>แผนที่ศูนย์ Computer Health Clinic</h2><p>เลือกห้องรักษา เรียนจากสถานการณ์จริง แล้วใช้ความรู้ป้องกันระบบ</p></div>
+          <div class="rank-card"><span>ระดับผู้เรียน</span><strong id="rankText">INTERN</strong><small id="rankSub">เริ่มภารกิจแรกเพื่อรับตรา</small></div>
+        </div>
+        <div id="missionMap" class="mission-map"></div>
+        <div class="hub-tip"><span>CAI FLOW</span><b>สถานการณ์</b><i>→</i><b>ฝึกปฏิบัติ</b><i>→</i><b>ป้องกันฐาน</b><i>→</i><b>สรุปความรู้</b></div>
+      </section>
+
+      <section id="scr-briefing" class="screen briefing-screen">
+        <button id="briefBackBtn" class="back-btn" type="button">← กลับแผนที่</button>
+        <div class="brief-grid">
+          <article class="brief-main glass-panel">
+            <p id="briefChapter" class="eyebrow"></p>
+            <h2 id="briefTitle"></h2>
+            <p id="briefSubtitle" class="lead"></p>
+            <div id="briefDialogue" class="dialogue-list"></div>
+            <div class="mission-flow">
+              <span><b>1</b> ฝึกกับระบบจำลอง</span><span><b>2</b> ป้องกันคลินิก</span><span><b>3</b> รับตราความรู้</span>
+            </div>
+            <button id="launchBtn" class="game-btn primary xl" type="button">เริ่มปฏิบัติการ</button>
+          </article>
+          <aside class="brief-side">
+            <div class="section-label">ACTIVE SQUAD</div>
+            <div id="briefTeam" class="brief-team"></div>
+            <div class="intel-card"><span>เครื่องมือประจำภารกิจ</span><strong id="briefTool"></strong><p id="briefEffect"></p></div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="scr-game" class="screen game-screen">
+        <div class="game-head">
+          <div><span id="gameChapter" class="eyebrow"></span><h2 id="gameTitle"></h2></div>
+          <div class="integrity"><span>ความสมบูรณ์ระบบ</span><div><i id="integrityBar"></i></div><strong id="integrityText">100%</strong></div>
+        </div>
+        <div id="phaseTrack" class="phase-track">
+          <span data-phase="0" class="active"><b>1</b> ฝึกปฏิบัติ</span><span data-phase="1"><b>2</b> ป้องกันระบบ</span><span data-phase="2"><b>3</b> สรุปผล</span>
+        </div>
+        <div id="missionMount" class="mission-mount"></div>
+      </section>
+
+      <section id="scr-roster" class="screen roster-screen">
+        <button id="rosterBackBtn" class="back-btn" type="button">← กลับ</button>
+        <div class="hub-heading"><div><p class="eyebrow">FULL GAMEPACK ROSTER</p><h2>ทีมแพทย์แมว PC-8</h2><p>ฮีโร่ทั้ง 15 ตัวถูกแบ่งตาม 5 ความเชี่ยวชาญ และรวมทีมในศึกสุดท้าย</p></div></div>
+        <div id="rosterGrid" class="roster-grid"></div>
+        <div class="specials-row">
+          <div class="special-card"><img src="assets/gamepack/Cat Guardian/Idle/Enemy-Idle_00.png" alt="Cat Guardian"><div><span>SPECIAL SUPPORT</span><strong>Cat Guardian</strong><p>กางโล่ฟื้นฟูฐานในศึกสุดท้าย</p></div></div>
+          <div class="special-card"><img src="assets/gamepack/CatBoxing/Idle/CatBoxing-Idle_00.png" alt="Cat Boxing"><div><span>SPECIAL ATTACK</span><strong>Cat Boxing</strong><p>หมัดหนักทำลายเกราะบอส</p></div></div>
+        </div>
+      </section>
+
+      <section id="scr-certificate" class="screen certificate-screen">
+        <div class="certificate">
+          <img src="assets/gamepack/Ui/Logo.png" alt="" class="certificate-logo">
+          <p class="eyebrow">MISSION COMPLETE</p>
+          <h2>PC-8 SYSTEM GUARDIAN</h2>
+          <p>คุณผ่านการฝึกดูแลระบบปฏิบัติการครบทุกด้านแล้ว</p>
+          <div id="certificateBadges" class="certificate-badges"></div>
+          <div id="healthSchedule" class="schedule-grid"></div>
+          <div class="certificate-actions"><button id="certHubBtn" class="game-btn primary" type="button">กลับศูนย์บัญชาการ</button><button id="replayFinalBtn" class="game-btn" type="button">เล่นศึกสุดท้ายอีกครั้ง</button></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="manualModal" class="modal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="manual-shell">
+      <button class="modal-close" type="button" data-close-modal>×</button>
+      <aside><p class="eyebrow">FIELD MANUAL</p><h3>คู่มือสุขภาพระบบ</h3><nav id="manualNav"></nav></aside>
+      <article id="manualContent"></article>
     </div>
-  </section>
+  </div>
 
-  <header class="topbar" id="topbar" hidden>
-    <div class="patient">
-      <span class="eyebrow">PC-8 Defense</span>
-      <strong>คลินิกสุขภาพคอมพิวเตอร์</strong>
-    </div>
-    <div class="roomdots" id="roomdots"></div>
-    <button class="icon-btn" id="mapBtn" type="button" aria-label="กลับแผนที่ภารกิจ" title="กลับแผนที่">⌂</button>
-    <button class="icon-btn" id="soundBtn" type="button" aria-label="เปิด/ปิดเสียง">🔊</button>
-  </header>
+  <div id="resultOverlay" class="result-overlay" aria-hidden="true">
+    <div id="resultCard" class="result-card"></div>
+  </div>
 
-  <main id="main">
-
-    <section class="screen" id="scr-start">
-      <div class="hero">
-        <div>
-          <span class="eyebrow">หน่วยที่ 8 · ระบบปฏิบัติการคอมพิวเตอร์</span>
-          <h1>PC-8 Defense</h1>
-          <p class="tagline">เกมทาวเวอร์ดีเฟนส์ปกป้องเครื่อง PC-8 จากไฟล์ขยะและไวรัส ด้วยหน่วยยูทิลิตี้ทั้ง 5 — เรียนรู้พร้อมลุยไปด้วยกัน</p>
-          <div class="btn-row">
-            <button class="btn btn-primary btn-lg" id="btnPlay" type="button">เริ่มภารกิจ ▶</button>
-          </div>
-        </div>
-        <div class="idcard">
-          <div class="idrow"><span>คนไข้</span><b>เครื่อง PC-8</b></div>
-          <div class="idrow"><span>ภารกิจ</span><b>ป้องกัน 5 ห้อง + บอสไวรัส</b></div>
-          <div class="idrow"><span>อาวุธ</span><b>หน่วยยูทิลิตี้ 5 ประเภท</b></div>
-          <div class="idrow"><span>เป้าหมาย</span><b>Vitals 100%</b></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="screen" id="scr-diagnosis">
-      <span class="eyebrow">PRE-OP · ห้องวินิจฉัย</span>
-      <h2>อ่านอาการ ก่อนเลือกเครื่องมือรักษา</h2>
-      <p class="muted">โปรแกรมยูทิลิตี้ช่วยแก้ปัญหา ประหยัดเวลา และฟื้นฟูประสิทธิภาพของระบบปฏิบัติการ</p>
-
-      <div class="brief-grid">
-        <article class="card symptom-card">
-          <span class="eyebrow">อาการของเครื่อง PC-8</span>
-          <div class="symptom-compare">
-            <div><b>วันแรกที่ใช้งาน</b><span>ทำงานรวดเร็ว · พื้นที่โล่ง · ระบบเสถียร</span></div>
-            <div><b>เมื่อเวลาผ่านไป</b><span>เครื่องอืด · ขยะสะสม · เสี่ยงไวรัสและข้อมูลสูญหาย</span></div>
-          </div>
-        </article>
-        <article class="card role-card">
-          <span class="eyebrow">บทบาทของยูทิลิตี้</span>
-          <div class="role-pills">
-            <span>🔧 ผู้ช่วยแก้ปัญหา</span>
-            <span>⏱ ผู้ประหยัดเวลา</span>
-            <span>⚡ ผู้ฟื้นฟูพลัง</span>
-          </div>
-        </article>
-      </div>
-
-      <div class="benefit-strip" aria-label="ประโยชน์ของโปรแกรมยูทิลิตี้">
-        <span>🔋 ประหยัดพลังงาน</span>
-        <span>🗂 จัดการข้อมูล</span>
-        <span>🌐 การสื่อสาร</span>
-        <span>📈 เพิ่มประสิทธิภาพ</span>
-        <span>⏰ ทำงานอัตโนมัติ</span>
-        <span>🛡 ความปลอดภัย</span>
-      </div>
-
-      <div class="card triage-card">
-        <div class="triage-head">
-          <div>
-            <span class="eyebrow">MINI GAME · วิเคราะห์อาการ</span>
-            <h3 id="triageTitle">เคสที่ 1 จาก 4</h3>
-          </div>
-          <div class="triage-score"><span id="triageScore">0</span>/4</div>
-        </div>
-        <p id="triageSymptom" class="triage-symptom"></p>
-        <div id="triageOptions" class="triage-options"></div>
-        <p id="triageFeedback" class="feedback" aria-live="polite"></p>
-      </div>
-    </section>
-
-    <section class="screen" id="scr-map">
-      <span class="eyebrow">แผนที่ภารกิจ</span>
-      <h2>เลือกห้องรักษาที่จะป้องกัน</h2>
-      <p class="muted">เคลียร์คลื่นศัตรูให้ครบ แล้วตอบคำถามให้ถูก เพื่อปลดล็อกห้องถัดไป</p>
-      <div class="hub-grid" id="hubGrid"></div>
-    </section>
-
-    <section class="screen" id="scr-lesson">
-      <span class="eyebrow" id="lessonCode">ROOM 01</span>
-      <h2 id="lessonTitle">Check Disk</h2>
-      <p class="lesson-heading" id="lessonHeading"></p>
-      <div class="card lesson-card">
-        <p id="lessonBody"></p>
-        <div id="lessonSteps" class="taplist"></div>
-      </div>
-      <div class="btn-row">
-        <button class="btn btn-ghost" id="lessonBack" type="button">← กลับแผนที่</button>
-        <button class="btn btn-primary" id="lessonGo" type="button">เข้าสนามรบ ▶</button>
-      </div>
-    </section>
-
-    <section class="screen" id="scr-battle">
-      <div class="battle-hud">
-        <div class="hud-item">
-          <span class="eyebrow">PC-8 Health</span>
-          <div class="bar hud-bar"><i id="healthBar" style="width:100%"></i></div>
-        </div>
-        <div class="hud-item hud-coins">
-          <img src="assets/img/ui/coin.png" alt="" class="coin-icon" />
-          <span id="coinsNum">0</span>
-        </div>
-        <div class="hud-item hud-wave">
-          <span class="eyebrow">Wave</span>
-          <span id="waveNum">0/0</span>
-        </div>
-      </div>
-      <div id="battleMount" class="battle-mount"></div>
-      <div id="battlePalette" class="battle-palette"></div>
-      <div id="battleControls" class="battle-controls">
-        <p id="battleHint">เลือกหน่วย แล้วแตะช่องว่างบนสนามเพื่อวางกำลัง</p>
-        <button class="btn btn-primary" id="battleStart" type="button">ปล่อยคลื่นศัตรู ▶</button>
-      </div>
-      <div id="battleOverlay" class="battle-overlay hidden">
-        <div class="card overlay-card">
-          <h3 id="overlayTitle"></h3>
-          <p id="overlayBody"></p>
-          <div class="btn-row" id="overlayActions"></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="screen" id="scr-quiz">
-      <span class="eyebrow">ด่านความรู้</span>
-      <h2>ตอบให้ถูก เพื่อปลดล็อกห้องถัดไป</h2>
-      <div class="card">
-        <p id="quizQ" class="quiz-question"></p>
-        <div id="quizOptions" class="quiz-options"></div>
-        <p id="quizFeedback" class="feedback" aria-live="polite"></p>
-      </div>
-    </section>
-
-    <section class="screen" id="scr-workshop">
-      <span class="eyebrow">PRACTICAL LAB · ภารกิจใบงานปฏิบัติที่ 8</span>
-      <h2>ลงมือรักษาเครื่องให้ครบ 4 งาน</h2>
-      <p class="muted">กดขั้นตอนตามลำดับเหมือนลงมือทำจริง เมื่อครบทุกงานจึงจะออกใบนัดดูแลเครื่องได้</p>
-      <div id="workshopGrid" class="workshop-grid"></div>
-      <div class="btn-row hidden" id="workshopDoneRow">
-        <button class="btn btn-primary" id="workshopNext" type="button">จัดตารางตรวจสุขภาพเครื่อง →</button>
-      </div>
-    </section>
-
-    <section class="screen" id="scr-schedule">
-      <span class="eyebrow">ใบนัดติดตามอาการ · Final</span>
-      <h2>ตารางตรวจสุขภาพคอมพิวเตอร์</h2>
-      <p class="muted">จับคู่ “งานดูแลรักษา” กับ “ความถี่” ที่ถูกต้อง</p>
-      <div class="card">
-        <div class="boss-grid">
-          <div>
-            <h4 class="eyebrow block-label">งานดูแลรักษา</h4>
-            <div class="pool" id="schedulePool"></div>
-          </div>
-          <div>
-            <h4 class="eyebrow block-label">ความถี่</h4>
-            <div class="slots" id="scheduleSlots"></div>
-          </div>
-        </div>
-        <div class="btn-row hidden" id="scheduleDoneRow">
-          <button class="btn btn-primary" id="scheduleNext" type="button">ดูใบรับรองสุขภาพเครื่อง →</button>
-        </div>
-      </div>
-    </section>
-
-    <section class="screen" id="scr-end">
-      <div class="end-hero">
-        <span class="eyebrow">ใบรับรองสุขภาพเครื่อง PC-8</span>
-        <div class="bignum">100%</div>
-        <h2>หายดีแล้ว!</h2>
-        <p>คุณปกป้องเครื่อง PC-8 ได้สำเร็จ ด้วยความรู้เรื่องโปรแกรมยูทิลิตี้ครบทั้ง 5 ชนิด</p>
-        <div class="discharge">
-          <span class="eyebrow">Discharge note</span>
-          <div class="quote">"คอมพิวเตอร์ที่สุขภาพดี คือเครื่องมือที่ทรงพลังที่สุดของคุณ"</div>
-        </div>
-        <div class="btn-row center">
-          <button class="btn btn-primary" id="btnReplay" type="button">เล่นใหม่อีกครั้ง</button>
-        </div>
-        <p class="credits">Art: craftpix.net free cartoon cat defense kit · Audio: craftpix.net futuristic audio pack 7</p>
-      </div>
-    </section>
-
-  </main>
-</div>
-
-<noscript><p class="noscript">เกมนี้ต้องเปิดใช้งาน JavaScript ในเบราว์เซอร์</p></noscript>
-
-<script src="js/data.js"></script>
-<script src="js/audio.js"></script>
-<script src="js/battle.js"></script>
-<script src="js/main.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/battle.js"></script>
+  <script src="js/main.js"></script>
 </body>
 </html>
