@@ -224,6 +224,7 @@ function renderPractice() {
   game.practiceSim = new WindowsPracticeSimulator({
     mount: $("missionMount"),
     mission,
+    sound,
     onMistake: amount => practiceDamage(amount),
     onComplete: () => continuePracticeFlow(mission)
   });

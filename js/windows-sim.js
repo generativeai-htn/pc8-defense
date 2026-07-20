@@ -4,6 +4,7 @@ class WindowsPracticeSimulator {
   constructor(options) {
     this.mount = options.mount;
     this.mission = options.mission;
+    this.sound = options.sound;
     this.onComplete = options.onComplete;
     this.onMistake = options.onMistake || (() => {});
     this.step = 0;
@@ -457,6 +458,8 @@ class WindowsPracticeSimulator {
     this.step = this.steps.length;
     this.completed = true;
     this.status = "";
+    this.sound?.play("confirm");
+    this.sound?.play("waveClear");
     this.render();
   }
 }
