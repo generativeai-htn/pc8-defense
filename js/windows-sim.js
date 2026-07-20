@@ -21,7 +21,16 @@ class WindowsPracticeSimulator {
     this.cleanupSelected = new Set();
     this.timer = null;
     this.destroyed = false;
+    this.continueHandled = false;
     this.steps = this.getSteps();
+    this.boundContinue = event => {
+      const button = event.target.closest?.('[data-win-action="continue"]');
+      if (!button || !this.mount.contains(button)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.advanceFromCompletion();
+    };
+    this.mount.addEventListener("click", this.boundContinue, true);
     this.render();
   }
 
@@ -55,6 +64,15 @@ class WindowsPracticeSimulator {
   destroy() {
     this.destroyed = true;
     clearTimeout(this.timer);
+    this.mount.removeEventListener("click", this.boundContinue, true);
+  }
+
+  advanceFromCompletion() {
+    if (!this.completed || this.continueHandled) return;
+    this.continueHandled = true;
+    const complete = this.onComplete;
+    this.destroy();
+    complete?.();
   }
 
   esc(value) {
@@ -157,7 +175,7 @@ class WindowsPracticeSimulator {
   }
 
   bind() {
-    this.mount.querySelectorAll("[data-win-action]").forEach(element => element.addEventListener("click", event => {
+    this.mount.querySelectorAll('[data-win-action]:not([data-win-action="continue"])').forEach(element => element.addEventListener("click", event => {
       event.stopPropagation();
       this.handleAction(element.dataset.winAction, element);
     }));
@@ -309,7 +327,7 @@ class WindowsPracticeSimulator {
   }
 
   completionHTML() {
-    return `<div class="win-modal-layer success"><section class="win-complete-dialog"><span>✓</span><h2>ปฏิบัติการสำเร็จ</h2><p>คุณทำขั้นตอนใน ${this.esc(UTILITIES[this.mission.id].name)} ครบตาม Workflow แล้ว</p><button data-win-action="continue" class="win-primary">เข้าสู่ขั้นตอนถัดไป</button></section></div>`;
+    return `<div class="win-modal-layer success"><section class="win-complete-dialog"><span>✓</span><h2>ปฏิบัติการสำเร็จ</h2><p>คุณทำขั้นตอนใน ${this.esc(UTILITIES[this.mission.id].name)} ครบตาม Workflow แล้ว</p><button data-win-action="continue" class="win-primary" type="button" autofocus>เข้าสู่ขั้นตอนถัดไป</button><small>กด Enter หรือ Space เพื่อไปต่อได้</small></section></div>`;
   }
 
   handleInput(type, value) {
@@ -325,7 +343,7 @@ class WindowsPracticeSimulator {
     if (action === "toggle-npc") { this.npcOpen = !this.npcOpen; return this.render(); }
     if (this.progress || this.completed && action !== "continue") return;
     const id = this.mission.id;
-    if (action === "continue") { this.destroy(); this.onComplete?.(); return; }
+    if (action === "continue") return this.advanceFromCompletion();
     if (action === "open-search") {
       if (!["defrag", "cleanup"].includes(id) || this.step !== 0) return this.hint("ภารกิจนี้ไม่จำเป็นต้องใช้ Search ในขั้นตอนปัจจุบัน");
       this.screen = "search"; this.step++; this.status = "พิมพ์ชื่อเครื่องมือในช่อง Search"; return this.render();
