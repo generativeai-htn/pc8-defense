@@ -30,6 +30,9 @@ function saveProgress() {
 function showScreen(id) {
   clearTimeout(game.questTimer);
   game.questTimer = null;
+  if (game.activeScreen && game.activeScreen !== id) {
+    sound.play(id === "scr-hub" ? "transitionBack" : "transition");
+  }
   if (game.battle && id !== "scr-game") { game.battle.stop(); game.battle = null; }
   if (game.practiceSim && id !== "scr-game") { game.practiceSim.destroy(); game.practiceSim = null; }
   document.querySelectorAll(".screen").forEach(screen => screen.classList.toggle("active", screen.id === id));
@@ -69,6 +72,9 @@ function initialize() {
 }
 
 function bindNavigation() {
+  document.addEventListener("click", event => {
+    if (event.target.closest("button")) sound.play("click");
+  });
   $("startBtn").addEventListener("click", () => { sound.playMusic("hub"); showScreen("scr-hub"); });
   $("homeBtn").addEventListener("click", () => showScreen("scr-hub"));
   $("briefBackBtn").addEventListener("click", () => showScreen("scr-hub"));
@@ -155,6 +161,8 @@ function startMission() {
 }
 
 function setPhase(index) {
+  const previous = [...$("phaseTrack").querySelectorAll("span")].findIndex(step => step.classList.contains("active"));
+  if (previous >= 0 && previous !== index) sound.play(index === 2 ? "confirm" : "transition");
   $("phaseTrack").querySelectorAll("span").forEach((step, stepIndex) => {
     step.classList.toggle("active", stepIndex === index);
     step.classList.toggle("done", stepIndex < index);
@@ -173,6 +181,7 @@ function teamCoach(mission) {
 }
 
 function continuePracticeFlow(mission) {
+  sound.play("confirm");
   game.practiceSim?.destroy();
   game.practiceSim = null;
   if (mission.id === "checkdisk") renderSectorScan();
@@ -206,6 +215,7 @@ function showQuestAssistant({ title, message, actionLabel, onContinue, autoDelay
   $("questContinueBtn").addEventListener("click", advance);
   game.questTimer = setTimeout(advance, autoDelay);
   sound.play("waveClear");
+  sound.play("confirm");
 }
 
 function renderPractice() {

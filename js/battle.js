@@ -11,6 +11,14 @@ const BOSS_TITLES = {
   4: "FRAGMENT COLOSSUS", 5: "JUNK CORE GOLIATH", 6: "SECURITY BREACH PRIME",
   7: "PC-8 CORE DESTROYER"
 };
+const PROCESS_LABELS = {
+  checkdisk: "SCANNING & REPAIRING FILE SYSTEM",
+  defrag: "REORDERING DATA BLOCKS",
+  cleanup: "REMOVING TEMPORARY FILES",
+  antivirus: "DETECTING & NEUTRALIZING THREATS",
+  onedrive: "SYNCING & BACKING UP DATA",
+  final: "PC-8 MULTI-UTILITY RECOVERY"
+};
 
 function explosionFramePath(type, frame) {
   const set = EXPLOSION_SETS[type];
@@ -272,6 +280,7 @@ class DefenseBattle {
     if (kind === "boss") {
       this.addExplosion("energy", enemy.x - 80, enemy.y - 190, 330, .62);
       this.shake = .28;
+      this.sound?.play("bossEnter");
     }
     this.totalSpawned++;
   }
@@ -362,6 +371,7 @@ class DefenseBattle {
       if (enemy.kind === "boss" || this.totalDefeated % 2 === 1) this.dropKnowledgeCore(enemy);
       this.addExplosion(enemy.kind === "boss" ? "nuclear" : "impact", enemy.x, enemy.y - (enemy.kind === "boss" ? 160 : 45), enemy.kind === "boss" ? 470 : 145, enemy.kind === "boss" ? 1.05 : .52);
       if (enemy.kind === "boss") this.shake = .65;
+      this.sound?.play("explosion");
       this.sound?.play("enemyDie");
     } else if (Math.random() < .3) this.sound?.play("hit");
   }
@@ -392,7 +402,7 @@ class DefenseBattle {
         const facts = this.mission.facts || [];
         const fact = facts.length ? facts[this.factIndex++ % facts.length] : "เก็บข้อมูลสำเร็จ — ระบบพร้อมทำงานต่อ";
         this.callbacks.onFact?.(fact, this.finalMode ? "SYSTEM +3" : "ABILITY +22");
-        this.sound?.play("hit");
+        this.sound?.play("pickup");
       }
     });
     this.pickups = this.pickups.filter(pickup => !pickup.collected && pickup.age < pickup.life);
@@ -494,6 +504,9 @@ class DefenseBattle {
     this.manualCooldown = this.fireRate;
     this.muzzle = .08;
     this.sound?.play("shoot");
+    const muzzleX = this.player.x + (this.player.facingLeft ? -38 : 38);
+    const muzzleY = this.player.y - 72;
+    this.addExplosion("energy", muzzleX, muzzleY, 48, .18);
     const candidates = this.enemies.filter(enemy => enemy.state === "walk" && Math.abs(enemy.x - x) < (enemy.kind === "boss" ? 215 : 70) && Math.abs((enemy.y - (enemy.kind === "boss" ? 175 : 0)) - y) < (enemy.kind === "boss" ? 245 : 90));
     const target = candidates.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
     this.effects.push({ kind: "tracer", x: this.player.x + (this.player.facingLeft ? -34 : 34), y: this.player.y - 70, x2: x, y2: y, radius: 0, growth: 0, age: 0, life: .1, color: target ? "#ffe27a" : "#ffffff" });
@@ -507,6 +520,7 @@ class DefenseBattle {
     const base = this.finalMode ? 12 : 15;
     const damage = target.shielded ? 1 : Math.round(base * multiplier);
     this.addExplosion(target.kind === "boss" ? "energy" : "impact", x, y, target.kind === "boss" ? 92 : 58, .3);
+    this.sound?.play("impact");
     this.hitEnemy(target, damage);
     this.combo++;
     this.comboTimer = 1.6;
@@ -523,7 +537,11 @@ class DefenseBattle {
     if (tool === "cleanup") living.forEach(enemy => { if (enemy.hp / enemy.maxHp < .52 && enemy.kind !== "boss") this.hitEnemy(enemy, 9999); else this.hitEnemy(enemy, 34); });
     if (tool === "antivirus") living.forEach(enemy => this.hitEnemy(enemy, enemy.kind === "boss" ? 105 : 90));
     if (tool === "onedrive") { this.integrity = Math.min(100, this.integrity + 28); this.callbacks.onIntegrity?.(this.integrity); living.forEach(enemy => { enemy.slowed = 3; }); }
+    living.forEach((enemy, index) => this.addExplosion(tool === "cleanup" ? "impact" : "energy", enemy.x, enemy.y - (enemy.kind === "boss" ? 175 : 55), enemy.kind === "boss" ? 230 : 105 + index % 3 * 12, .58));
+    this.addSystemProcess(tool);
     this.effects.push({ x: 700, y: 400, radius: 20, growth: 900, age: 0, life: .65, color: UTILITIES[tool].color });
+    this.sound?.play("ability");
+    this.sound?.play("explosion");
     this.sound?.play("waveClear");
     return true;
   }
@@ -540,7 +558,9 @@ class DefenseBattle {
       this.callbacks.onAlert?.(null, false, tool);
       this.effects.push({ x: boss.x, y: boss.y, radius: 25, growth: 950, age: 0, life: .65, color: UTILITIES[tool].color });
       this.addExplosion("energy", boss.x, boss.y - 185, 310, .68);
+      this.addSystemProcess(tool);
       this.shake = .32;
+      this.sound?.play("ability");
       this.sound?.play("waveClear");
       return true;
     }
@@ -556,10 +576,13 @@ class DefenseBattle {
       this.integrity = Math.min(100, this.integrity + 24);
       this.callbacks.onIntegrity?.(this.integrity);
       this.effects.push({ x: this.baseX, y: 420, radius: 35, growth: 500, age: 0, life: 1, color: "#53d6a5" });
+      this.addSystemProcess("onedrive");
+      this.sound?.play("ability");
     } else {
       this.specialCooldown.boxing = 12;
       const target = this.enemies.filter(enemy => enemy.state === "walk").sort((a,b) => a.x-b.x)[0];
-      if (target) this.hitEnemy(target, target.shielded ? 35 : 140);
+      if (target) { this.addExplosion("impact", target.x, target.y - 100, 230, .62); this.hitEnemy(target, target.shielded ? 35 : 140); }
+      this.sound?.play("explosion");
     }
     this.callbacks.onSpecial?.(type, this.specialCooldown[type]);
     return true;
@@ -593,6 +616,41 @@ class DefenseBattle {
     this.ctx.restore();
   }
 
+  addSystemProcess(tool) {
+    this.effects.push({ kind: "system-process", tool, age: 0, life: 1.25, radius: 0, growth: 0 });
+  }
+
+  drawProcessAmbience(ctx) {
+    const id = this.finalMode ? "final" : this.mission.id;
+    const t = this.time;
+    ctx.save();
+    if (id === "checkdisk" || id === "final") {
+      const x = 390 + (t * 115 % 800);
+      const scan = ctx.createLinearGradient(x - 55, 0, x + 55, 0);
+      scan.addColorStop(0, "rgba(61,213,255,0)"); scan.addColorStop(.5, "rgba(61,213,255,.16)"); scan.addColorStop(1, "rgba(61,213,255,0)");
+      ctx.fillStyle = scan; ctx.fillRect(x - 55, 160, 110, 500);
+    }
+    if (id === "defrag" || id === "final") {
+      ["#54d8ff","#64e3a7","#ffd05a","#a986ff"].forEach((color, i) => {
+        ctx.fillStyle = color; ctx.globalAlpha = .24;
+        for (let n = 0; n < 4; n++) ctx.fillRect(520 + i * 120 + ((t * 35 + n * 28) % 92), 635 - i * 9, 18, 8);
+      });
+    }
+    if (id === "cleanup" || id === "final") {
+      ctx.fillStyle = "rgba(255,174,58,.26)";
+      for (let i = 0; i < 12; i++) { const p = (t * .22 + i / 12) % 1; ctx.fillRect(1180 - p * 760, 220 + Math.sin(i * 2.3 + t) * 150 + i * 18, 5, 5); }
+    }
+    if (id === "antivirus" || id === "final") {
+      ctx.strokeStyle = "rgba(92,236,176,.19)"; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(this.baseX, 420, 115 + Math.sin(t * 3) * 8, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (id === "onedrive" || id === "final") {
+      ctx.fillStyle = "rgba(95,205,255,.25)";
+      for (let i = 0; i < 9; i++) { const p = (t * .18 + i / 9) % 1; ctx.fillRect(520 + i * 76, 650 - p * 390, 7, 15); }
+    }
+    ctx.restore();
+  }
+
   draw() {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, 1280, 720);
@@ -602,6 +660,7 @@ class DefenseBattle {
     if (area) ctx.drawImage(area, 0, 0, 1280, 720);
     else { ctx.fillStyle = "#193854"; ctx.fillRect(0,0,1280,720); }
     ctx.fillStyle = "rgba(7,15,27,.12)"; ctx.fillRect(0,0,1280,720);
+    this.drawProcessAmbience(ctx);
 
     this.pickups.forEach(pickup => {
       const glow = 18 + Math.sin(pickup.pulse) * 5;
@@ -698,6 +757,20 @@ class DefenseBattle {
         ctx.restore();
         return;
       }
+      if (effect.kind === "system-process") {
+        const progress = Math.min(1, effect.age / effect.life);
+        const color = UTILITIES[effect.tool]?.color || "#55d8ff";
+        ctx.globalAlpha = Math.sin(progress * Math.PI) * .78;
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 330 + progress * 70, 1280, 10);
+        ctx.fillStyle = "rgba(5,12,24,.88)";
+        ctx.fillRect(370, 72, 540, 58);
+        ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.strokeRect(370, 72, 540, 58);
+        ctx.fillStyle = "#ffffff"; ctx.font = "700 22px Chakra Petch, sans-serif"; ctx.textAlign = "center";
+        ctx.fillText(`${UTILITIES[effect.tool]?.icon || "⚡"} ${PROCESS_LABELS[effect.tool] || "SYSTEM PROCESS"}`, 640, 108);
+        ctx.restore();
+        return;
+      }
       ctx.globalAlpha = 1 - effect.age / effect.life;
       ctx.strokeStyle = effect.color;
       if (effect.kind === "tracer") {
@@ -717,6 +790,13 @@ class DefenseBattle {
 
     ctx.fillStyle = "rgba(5,12,23,.72)";ctx.fillRect(14,14,225,42);
     ctx.fillStyle = "#dfeeff";ctx.font = "700 18px Chakra Petch, sans-serif";ctx.fillText(`SYSTEM ${Math.round(this.integrity)}%`,28,41);
+
+    ctx.save();
+    ctx.fillStyle = "rgba(5,12,23,.72)"; ctx.fillRect(385,14,510,42);
+    ctx.fillStyle = UTILITIES[this.mission.id]?.color || "#55d8ff"; ctx.fillRect(385,52,510 * ((this.time * .12) % 1),4);
+    ctx.fillStyle = "#dfeeff"; ctx.font = "700 16px Chakra Petch, sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(`ACTIVE PROCESS · ${PROCESS_LABELS[this.finalMode ? "final" : this.mission.id]}`,640,41);
+    ctx.restore();
 
     if (this.combo > 1) {
       ctx.save();
