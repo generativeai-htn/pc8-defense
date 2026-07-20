@@ -7,7 +7,7 @@ const UNIT_ORDER = ["checkdisk", "defrag", "cleanup", "antivirus", "onedrive"];
 
 const game = {
   completed: new Set(), currentMission: null, battle: null, integrity: 100,
-  previousScreen: "scr-hub", activeScreen: "scr-start", practiceDone: false
+  previousScreen: "scr-hub", activeScreen: "scr-start", practiceDone: false, practiceSim: null
 };
 
 function escapeHTML(value) {
@@ -28,6 +28,7 @@ function saveProgress() {
 
 function showScreen(id) {
   if (game.battle && id !== "scr-game") { game.battle.stop(); game.battle = null; }
+  if (game.practiceSim && id !== "scr-game") { game.practiceSim.destroy(); game.practiceSim = null; }
   document.querySelectorAll(".screen").forEach(screen => screen.classList.toggle("active", screen.id === id));
   game.previousScreen = game.activeScreen;
   game.activeScreen = id;
@@ -170,9 +171,17 @@ function teamCoach(mission) {
 
 function renderPractice() {
   const mission = game.currentMission;
-  if (mission.id === "defrag") return renderDefrag();
-  if (mission.id === "cleanup") return renderCleanup();
-  renderSequence(mission, mission.id === "checkdisk" ? renderSectorScan : finishPractice);
+  game.practiceSim?.destroy();
+  game.practiceSim = new WindowsPracticeSimulator({
+    mount: $("missionMount"),
+    mission,
+    onMistake: amount => practiceDamage(amount),
+    onComplete: () => {
+      game.practiceSim = null;
+      if (mission.id === "checkdisk") renderSectorScan();
+      else finishPractice();
+    }
+  });
 }
 
 function procedureStrip(sequence) {
@@ -267,8 +276,11 @@ function renderCleanup() {
 function finishPractice() {
   if (game.practiceDone) return;
   game.practiceDone = true;
+  if (!$("practiceActions")) {
+    const mission = game.currentMission;
+    $("missionMount").innerHTML = `<div class="sim-layout"><section class="sim-console practice-ready"><p class="eyebrow">WINDOWS WORKFLOW COMPLETE</p><h3>ปฏิบัติใน Windows จำลองสำเร็จ</h3><p class="sim-instruction">คุณใช้งาน ${escapeHTML(UTILITIES[mission.id].name)} ตามขั้นตอนจริงครบแล้ว พร้อมนำความรู้ไปใช้ในสนามป้องกันระบบ</p><div class="takeaways">${mission.facts.map((fact,index)=>`<div class="takeaway"><b>${index+1}</b> ${escapeHTML(fact)}</div>`).join("")}</div><div id="practiceActions" class="sim-actions"></div></section>${teamCoach(mission)}</div>`;
+  }
   const actions = $("practiceActions");
-  if (!actions) return;
   actions.innerHTML = `<button id="toBattleBtn" class="game-btn primary xl" type="button">นำความรู้ไปป้องกันระบบ →</button>`;
   $("toBattleBtn").addEventListener("click",()=>{setPhase(1);renderBattle(false);});
   sound.play("waveClear");

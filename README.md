@@ -32,11 +32,11 @@ Start (เข้าสู่ศูนย์รักษา)
 
 | ห้อง | เครื่องมือ | Mini-game ฝึกปฏิบัติ | ศัตรู |
 |---|---|---|---|
-| 01 Sector Rescue | Check Disk | คลิกเซกเตอร์สีแดง (จุดเสีย) ให้ครบ | Enemy Reg 1–2 |
-| 02 Block Order Protocol | Optimize & Defragment | สลับบล็อกสีให้เรียงเป็น 0% fragmented | Enemy Reg 3–4 |
-| 03 Storage Detox Run | Disk Cleanup | เลือกลบเฉพาะไฟล์ขยะ ห้ามโดนเอกสารสำคัญ | Enemy Reg 5–6 |
-| 04 Immunity Firewall | Antivirus | เรียงลำดับขั้นตอนอัปเดต/เปิด Real-time protection | Enemy Reg 7–8 + Boss 1 |
-| 05 Cloud Bridge Escort | OneDrive | เรียงลำดับสมัคร/Sync/Upload/Share | Enemy Reg 1,3,5 + Boss 2 |
+| 01 Sector Rescue | Check Disk | This PC → คลิกขวา C: → Properties → Tools → Check → Scan drive และตรวจเซกเตอร์ | Enemy Reg 1–2 |
+| 02 Block Order Protocol | Optimize & Defragment | Search → เปิด Optimize Drives → Analyze → Optimize จนเป็น 0% fragmented | Enemy Reg 3–4 |
+| 03 Storage Detox Run | Disk Cleanup | Search → เลือก C: → Scan → เลือกไฟล์ขยะ → ยืนยัน Delete Files | Enemy Reg 5–6 |
+| 04 Immunity Firewall | Antivirus | Windows Security → Update → Real-time protection → Quick/Scheduled scan | Enemy Reg 7–8 + Boss 1 |
+| 05 Cloud Bridge Escort | OneDrive | Edge → Sign in → Upload → Share → Sync → Free up space | Enemy Reg 1,3,5 + Boss 2 |
 | Final: PC-8 Core Emergency | ทั้ง 5 ยูทิลิตี้ | จับคู่ "อาการบอส" กับเครื่องมือให้ถูกก่อนโล่จะทำลายฐาน | Boss 3–7 ต่อเนื่อง |
 
 จบเกมได้ตารางตรวจสุขภาพ (Daily = Antivirus, Weekly = Disk Cleanup, Monthly = Defrag/Check Disk,
@@ -68,7 +68,8 @@ pc8-defense/
 │   │                     #   REGULAR_ENEMIES, BOSS_ENEMIES, HEALTH_SCHEDULE, MANUAL_SECTIONS
 │   ├── audio.js          # SoundManager: เพลง 3 เพลง + sfx 6 เสียง, mute ผ่าน localStorage
 │   ├── battle.js         # DefenseBattle: canvas engine — เล็ง/ยิง/คลื่นศัตรู/บอส/เอฟเฟกต์
-│   └── main.js           # ควบคุม flow, render แต่ละ screen, mini-game 3 แบบ, บันทึก progress
+│   ├── windows-sim.js     # Windows Practice Lab: Desktop/Explorer/Security/OneDrive จำลอง
+│   └── main.js           # ควบคุม flow, render แต่ละ screen และบันทึก progress
 └── assets/
     ├── gamepack/         # สำเนาเต็มของ CraftPix Cat Defense kit (ตัวละคร 15, ศัตรู 15, UI, FX)
     └── audio/            # CraftPix Futuristic Audio Pack 7 (คัดมาเฉพาะที่ใช้)
