@@ -26,6 +26,9 @@
         <img src="assets/gamepack/Ui/Logo.png" alt="" class="brand-logo">
         <div><strong>PC-8 GUARDIAN ACADEMY</strong><span>COMPUTER HEALTH CLINIC · UNIT 8</span></div>
       </div>
+      <button id="studentProfileBtn" class="student-chip" type="button" hidden aria-label="ข้อมูลผู้เรียนและสลับผู้ใช้งาน">
+        <span>ผู้เรียน</span><strong id="studentProfileText"></strong>
+      </button>
       <div class="top-progress" title="ความก้าวหน้าทั้งหลักสูตร"><span id="topProgressBar"></span></div>
       <strong id="topProgressText" class="progress-label">0/6</strong>
       <button id="rosterBtn" class="icon-btn text-icon" type="button" aria-label="ดูทีมแพทย์">TEAM</button>
@@ -113,6 +116,32 @@
     </main>
   </div>
 
+  <div id="studentGate" class="student-gate" aria-hidden="true">
+    <div class="student-gate-card" role="dialog" aria-modal="true" aria-labelledby="studentGateTitle">
+      <div class="student-gate-art">
+        <img src="assets/gamepack/Ui/Logo.png" alt="">
+        <img class="student-guide-cat" src="assets/gamepack/Characters/C1/Idle/Character1-Idle_00.png" alt="ผู้ช่วยแมว">
+      </div>
+      <div class="student-gate-copy">
+        <p class="eyebrow">CADET REGISTRATION</p>
+        <h2 id="studentGateTitle">ลงทะเบียนผู้เรียนก่อนเริ่มภารกิจ</h2>
+        <p>หมอพิกเซลจะบันทึกการเข้าใช้งานและความก้าวหน้าของคุณลงในระบบรายวิชา</p>
+        <form id="studentForm" novalidate>
+          <label for="studentId">รหัสนักศึกษา</label>
+          <input id="studentId" name="studentId" type="text" inputmode="text" autocomplete="off" maxlength="30" placeholder="เช่น 65001" required>
+          <label for="studentName">ชื่อ-นามสกุล</label>
+          <input id="studentName" name="studentName" type="text" autocomplete="name" maxlength="100" placeholder="เช่น สมชาย ใจดี" required>
+          <p id="studentFormError" class="student-form-error" role="alert"></p>
+          <div class="student-form-actions">
+            <button id="studentCancelBtn" class="game-btn" type="button" hidden>ยกเลิก</button>
+            <button class="game-btn primary" type="submit">ยืนยันและเข้าสู่ Academy</button>
+          </div>
+        </form>
+        <small class="student-privacy">เก็บเฉพาะรหัสนักศึกษา ชื่อ-นามสกุล และความก้าวหน้าภายในบทเรียนนี้</small>
+      </div>
+    </div>
+  </div>
+
   <div id="manualModal" class="modal" aria-hidden="true">
     <div class="modal-backdrop" data-close-modal></div>
     <div class="manual-shell">
@@ -126,10 +155,11 @@
     <div id="resultCard" class="result-card"></div>
   </div>
 
-  <script src="js/data.js?v=20260720-shuffle15"></script>
+  <script src="js/config.js?v=20260721-student1"></script>
+  <script src="js/data.js?v=20260721-student1"></script>
   <script src="js/audio.js?v=20260720-shuffle15"></script>
   <script src="js/battle.js?v=20260720-shuffle15"></script>
   <script src="js/windows-sim.js?v=20260720-shuffle15"></script>
-  <script src="js/main.js?v=20260720-shuffle15"></script>
+  <script src="js/main.js?v=20260721-student1"></script>
 </body>
 </html>

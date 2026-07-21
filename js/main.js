@@ -2,8 +2,12 @@
 
 const $ = id => document.getElementById(id);
 const sound = new SoundManager();
-const SAVE_KEY = "pc8_guardian_academy_v2";
+const LEGACY_SAVE_KEY = "pc8_guardian_academy_v2";
+const STUDENT_PROFILE_KEY = "pc8_guardian_academy_student_v1";
+const STUDENT_ENDPOINT = window.PC8_CONFIG?.studentDataEndpoint?.trim() || "";
 const UNIT_ORDER = ["checkdisk", "defrag", "cleanup", "antivirus", "onedrive"];
+let studentProfile = null;
+let studentSessionId = "";
 
 const game = {
   completed: new Set(), currentMission: null, battle: null, integrity: 100,
@@ -45,15 +49,110 @@ function shuffleUtilityDock() {
   });
 }
 
+function normalizeStudentId(value) {
+  return String(value || "").trim().replace(/\s+/g, "");
+}
+
+function studentSaveKey() {
+  if (!studentProfile?.studentId) return `${LEGACY_SAVE_KEY}_guest`;
+  return `${LEGACY_SAVE_KEY}_student_${encodeURIComponent(studentProfile.studentId.toLowerCase())}`;
+}
+
+function loadStudentProfile() {
+  try {
+    const profile = JSON.parse(localStorage.getItem(STUDENT_PROFILE_KEY));
+    if (profile?.studentId && profile?.fullName) studentProfile = profile;
+  } catch { studentProfile = null; }
+  try {
+    studentSessionId = sessionStorage.getItem("pc8_student_session") || crypto.randomUUID();
+    sessionStorage.setItem("pc8_student_session", studentSessionId);
+  } catch {
+    studentSessionId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+  updateStudentChip();
+}
+
+function updateStudentChip() {
+  const button = $("studentProfileBtn");
+  const text = $("studentProfileText");
+  if (!button || !text) return;
+  button.hidden = !studentProfile;
+  text.textContent = studentProfile ? `${studentProfile.studentId} · ${studentProfile.fullName}` : "";
+  button.title = studentProfile ? `${studentProfile.fullName} (${studentProfile.studentId}) — คลิกเพื่อสลับผู้เรียน` : "";
+}
+
+function openStudentGate(allowCancel = false) {
+  const gate = $("studentGate");
+  $("studentId").value = studentProfile?.studentId || "";
+  $("studentName").value = studentProfile?.fullName || "";
+  $("studentFormError").textContent = "";
+  $("studentCancelBtn").hidden = !allowCancel;
+  gate.classList.add("open");
+  gate.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  setTimeout(() => $("studentId").focus(), 80);
+}
+
+function closeStudentGate() {
+  $("studentGate").classList.remove("open");
+  $("studentGate").setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function registerStudent(event) {
+  event.preventDefault();
+  const studentId = normalizeStudentId($("studentId").value);
+  const fullName = $("studentName").value.trim().replace(/\s+/g, " ");
+  const error = $("studentFormError");
+  if (studentId.length < 2) { error.textContent = "กรุณากรอกรหัสนักศึกษาให้ถูกต้อง"; $("studentId").focus(); return; }
+  if (fullName.length < 3 || !fullName.includes(" ")) { error.textContent = "กรุณากรอกชื่อและนามสกุลให้ครบ"; $("studentName").focus(); return; }
+  const changedStudent = studentProfile?.studentId !== studentId;
+  studentProfile = { studentId, fullName };
+  localStorage.setItem(STUDENT_PROFILE_KEY, JSON.stringify(studentProfile));
+  updateStudentChip();
+  if (changedStudent) {
+    loadSave();
+    renderCertificate();
+    updateTopProgress();
+    showScreen("scr-start");
+  }
+  closeStudentGate();
+  syncStudentEvent("LOGIN");
+}
+
+function syncStudentEvent(eventName, details = {}) {
+  if (!studentProfile || !STUDENT_ENDPOINT) return Promise.resolve(false);
+  const completedMissions = UNIT_ORDER.filter(id => game.completed.has(id)).length + (game.completed.has("final") ? 1 : 0);
+  const payload = {
+    studentId: studentProfile.studentId,
+    fullName: studentProfile.fullName,
+    event: eventName,
+    mission: details.mission || game.currentMission?.id || "-",
+    completedMissions,
+    progress: Math.round(completedMissions / 6 * 100),
+    integrity: Math.round(details.integrity ?? game.integrity ?? 100),
+    sessionId: studentSessionId,
+    source: location.href
+  };
+  return fetch(STUDENT_ENDPOINT, {
+    method: "POST",
+    mode: "no-cors",
+    cache: "no-store",
+    keepalive: true,
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload)
+  }).then(() => true).catch(() => false);
+}
+
 function loadSave() {
   try {
-    const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
+    const saved = JSON.parse(localStorage.getItem(studentSaveKey()));
     game.completed = new Set(Array.isArray(saved?.completed) ? saved.completed : []);
   } catch { game.completed = new Set(); }
 }
 
 function saveProgress() {
-  localStorage.setItem(SAVE_KEY, JSON.stringify({ completed: [...game.completed] }));
+  localStorage.setItem(studentSaveKey(), JSON.stringify({ completed: [...game.completed] }));
   updateTopProgress();
 }
 
@@ -79,6 +178,7 @@ function updateTopProgress() {
 }
 
 function initialize() {
+  loadStudentProfile();
   loadSave();
   renderStartCats();
   renderRoster();
@@ -96,7 +196,12 @@ function initialize() {
     $("loadingText").textContent = messages[Math.min(messages.length - 1, Math.floor(progress / 27))];
     if (progress >= 100) {
       clearInterval(timer);
-      setTimeout(() => { $("loadingScreen").classList.add("is-hidden"); $("app").classList.remove("is-hidden"); }, 280);
+      setTimeout(() => {
+        $("loadingScreen").classList.add("is-hidden");
+        $("app").classList.remove("is-hidden");
+        if (studentProfile) syncStudentEvent("SESSION_START");
+        else openStudentGate(false);
+      }, 280);
     }
   }, 170);
 }
@@ -106,6 +211,9 @@ function bindNavigation() {
     if (event.target.closest("button")) sound.play("click");
   });
   $("startBtn").addEventListener("click", () => { sound.playMusic("hub"); showScreen("scr-hub"); });
+  $("studentProfileBtn").addEventListener("click", () => openStudentGate(true));
+  $("studentForm").addEventListener("submit", registerStudent);
+  $("studentCancelBtn").addEventListener("click", closeStudentGate);
   $("homeBtn").addEventListener("click", () => showScreen("scr-hub"));
   $("briefBackBtn").addEventListener("click", () => showScreen("scr-hub"));
   $("launchBtn").addEventListener("click", startMission);
@@ -519,7 +627,7 @@ function closeResult(){$("resultOverlay").classList.remove("open");$("resultOver
 function renderDebrief(result) {
   if(game.battle){game.battle.stop();game.battle=null;}
   $("scr-game").classList.remove("battle-mode");
-  const mission=game.currentMission;setPhase(2);game.completed.add(mission.id);saveProgress();sound.playMusic("hub");
+  const mission=game.currentMission;setPhase(2);game.completed.add(mission.id);saveProgress();syncStudentEvent(mission.id==="final"?"FINAL_COMPLETE":"MISSION_COMPLETE",{mission:mission.id,integrity:result.integrity});sound.playMusic("hub");
   const facts=mission.facts || FINAL_MISSION.facts;
   $("missionMount").innerHTML=`<div class="debrief"><img class="badge-art" src="${PACK}/Ui/WinBonus.png" alt=""><p class="eyebrow">SYSTEM STABILIZED · INTEGRITY ${result.integrity}%</p><h3>${mission.id==="final"?"ปกป้อง PC-8 Core สำเร็จ":escapeHTML(mission.reward)}</h3><p>ความรู้ที่นำไปใช้ในภารกิจนี้</p><div class="takeaways">${facts.map((fact,index)=>`<div class="takeaway"><b>${index+1}</b> ${escapeHTML(fact)}</div>`).join("")}</div><button id="debriefNext" class="game-btn primary xl" type="button">${mission.id==="final"?"รับประกาศนียบัตร":"กลับแผนที่ภารกิจ"}</button></div>`;
   $("debriefNext").addEventListener("click",()=>mission.id==="final"?(renderCertificate(),showScreen("scr-certificate")):showScreen("scr-hub"));
